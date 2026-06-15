@@ -120,6 +120,73 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     .anim-fade { animation: fadeIn 0.18s ease; }
+
+    /* ===== RESPONSIVE ===== */
+    /* Colapsar grids de varias columnas a 1 columna en pantallas pequeñas */
+    @media (max-width: 768px) {
+      [style*="grid-template-columns"]:not(.dash-stat-grid):not(.sel-grid) {
+        grid-template-columns: 1fr !important;
+      }
+      /* Inputs a 16px para evitar zoom automático en iOS */
+      input, textarea, select { font-size: 16px !important; }
+      /* Tablas con scroll horizontal */
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+    /* Tablet: grids de 3+ columnas pasan a 2 */
+    @media (min-width: 769px) and (max-width: 1080px) {
+      .sel-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    }
+    /* Selection grid: 1 columna en móvil */
+    @media (max-width: 600px) {
+      .sel-grid { grid-template-columns: 1fr !important; }
+    }
+
+    /* ===== DASHBOARD RESPONSIVE ===== */
+    /* Las filas del dashboard se apilan verticalmente en móvil */
+    @media (max-width: 860px) {
+      .dash-row { flex-direction: column !important; }
+      .dash-row > * { min-width: 0 !important; width: 100% !important; }
+      /* Anillos: reducir tamaño y permitir wrap del contenido */
+      .dash-ring-card { gap: 18px !important; padding: 18px !important; }
+      .dash-ring-card svg { width: 110px !important; height: 110px !important; }
+      .dash-stat-grid { grid-template-columns: 1fr 1fr !important; width: 100%; }
+    }
+    @media (max-width: 420px) {
+      .dash-ring-card { flex-direction: column !important; text-align: center; }
+      .dash-ring-card svg { width: 130px !important; height: 130px !important; }
+      .dash-stat-grid { grid-template-columns: 1fr 1fr !important; }
+    }
+
+    /* ===== EVIDENCIAS RESPONSIVE ===== */
+    /* Fila de documento: permitir wrap en móvil para que los botones no se desborden */
+    @media (max-width: 640px) {
+      .ev-doc-row { flex-wrap: wrap !important; row-gap: 8px; }
+      .ev-doc-row .ev-doc-info { flex: 1 1 100% !important; order: -1; }
+      .ev-doc-actions { margin-left: auto; }
+    }
+
+    /* ===== OBJETIVOS RESPONSIVE ===== */
+    /* La tarjeta de objetivo reorganiza anillo, info y acciones en móvil */
+    @media (max-width: 640px) {
+      .obj-row { flex-wrap: wrap !important; }
+      .obj-ring { width: 64px !important; height: 64px !important; }
+      .obj-info { flex: 1 1 calc(100% - 80px) !important; }
+      /* Las acciones bajan a su propia línea, alineadas a la derecha */
+      .obj-actions { flex: 1 1 100% !important; justify-content: flex-end; order: 3;
+        border-top: 1px solid var(--border-subtle); padding-top: 8px; margin-top: 4px; }
+      .obj-actions button { padding: 8px !important; }
+    }
+
+    /* ===== ORGANISMO RESPONSIVE ===== */
+    /* El header apila avatar+info y baja los botones a su propia línea */
+    @media (max-width: 640px) {
+      .org-header { flex-wrap: wrap !important; gap: 16px !important; }
+      .org-header-info { flex: 1 1 calc(100% - 96px) !important; }
+      .org-header-actions { flex: 1 1 100% !important; }
+      .org-header-actions button { flex: 1; justify-content: center; }
+      /* El botón "Editar" (cuando va solo) ocupa todo el ancho */
+      .org-header > button { flex: 1 1 100% !important; justify-content: center; }
+    }
   </style>
 </head>
 <body>
@@ -380,7 +447,7 @@ function LoginScreen({ onLogin }) {
 // ════════════════════════════════════════════════════
 // ▸ SIDEBAR
 // ════════════════════════════════════════════════════
-function Sidebar({ current, onNavigate, user, openIncidents, onLogout }) {
+function Sidebar({ current, onNavigate, user, openIncidents, onLogout, onChangeFramework, isMobile, isOpen, onClose }) {
   const NAV = [
     { key: 'dashboard',  icon: 'layout-dashboard', label: 'Panel' },
     { key: 'objectives', icon: 'target',            label: 'Objetivos COMGES' },
@@ -390,93 +457,243 @@ function Sidebar({ current, onNavigate, user, openIncidents, onLogout }) {
   ];
   const initials = user?.email?.[0]?.toUpperCase() || 'U';
 
+  const handleNav = (key) => { onNavigate(key); if (isMobile && onClose) onClose(); };
+
+  const asideStyle = isMobile
+    ? { position: 'fixed', top: 0, left: 0, height: '100vh', width: 'min(80vw, 280px)',
+        zIndex: 1001, transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
+        transition: 'transform 240ms ease', display: 'flex', flexDirection: 'column',
+        padding: '20px 16px', gap: 16, background: 'rgba(6,15,43,.96)',
+        borderRight: '1px solid var(--border-subtle)', backdropFilter: 'var(--blur-glass)', overflowY: 'auto' }
+    : { width: 264, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column',
+        padding: '20px 16px', gap: 20, background: 'rgba(6,15,43,.55)',
+        borderRight: '1px solid var(--border-subtle)', backdropFilter: 'var(--blur-glass)' };
+
   return (
-    <aside style={{ width: 264, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column',
-      padding: '20px 16px', gap: 20, background: 'rgba(6,15,43,.55)',
-      borderRight: '1px solid var(--border-subtle)', backdropFilter: 'var(--blur-glass)' }}>
+    <>
+      {isMobile && isOpen && (
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(3,8,22,.6)', backdropFilter: 'blur(3px)' }} />
+      )}
+      <aside style={asideStyle}>
 
-      {/* Brand */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '4px 8px' }}>
-        <CsShieldLogo size={32} gradId="sb-shield" />
-        <div>
-          <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 16, color: 'var(--text-strong)' }}>
-            Cyber-Sentinel
+        {/* Brand */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '4px 8px' }}>
+          <CsShieldLogo size={32} gradId="sb-shield" />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 16, color: 'var(--text-strong)' }}>
+              Cyber-Sentinel
+            </div>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9.5, color: 'var(--text-faint)' }}>
+              COMGES · SALUD
+            </div>
           </div>
-          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9.5, color: 'var(--text-faint)' }}>
-            COMGES · SALUD
-          </div>
-        </div>
-      </div>
-
-      {/* Nav */}
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-        {NAV.map(it => {
-          const active = current === it.key;
-          return (
-            <button key={it.key} onClick={() => onNavigate(it.key)} style={{
-              display: 'flex', alignItems: 'center', gap: 12, width: '100%',
-              padding: '10px 14px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-              background: active ? 'linear-gradient(100deg,rgba(124,92,252,.22),rgba(42,111,219,.16))' : 'transparent',
-              border: active ? '1px solid var(--border-default)' : '1px solid transparent',
-              color: active ? 'var(--text-strong)' : 'var(--text-muted)',
-              fontSize: 14, fontWeight: 600, transition: 'all 140ms',
-            }}>
-              <span style={{ color: active ? 'var(--celeste-300)' : 'inherit' }}>{Ic(it.icon)}</span>
-              <span style={{ flex: 1, textAlign: 'left' }}>{it.label}</span>
-              {it.badge > 0 && (
-                <span style={{ minWidth: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: '#fff',
-                  background: 'var(--morado-500)', borderRadius: 'var(--radius-pill)' }}>
-                  {it.badge}
-                </span>
-              )}
+          {isMobile && (
+            <button onClick={onClose} aria-label="Cerrar menú"
+              style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer',
+                width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {Ic('x', { width: 20, height: 20 })}
             </button>
-          );
-        })}
-      </nav>
+          )}
+        </div>
 
-      {/* User footer */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12,
-        background: 'var(--surface-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
-        <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-          background: 'var(--grad-shield)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 13, color: '#fff' }}>
-          {initials}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-strong)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {user?.email}
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>Encargado COMGES</div>
-        </div>
-        <button onClick={onLogout} title="Cerrar sesión"
-          style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 4 }}>
-          {Ic('log-out', { width: 16, height: 16 })}
+        {/* Nav */}
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+          {NAV.map(it => {
+            const active = current === it.key;
+            return (
+              <button key={it.key} onClick={() => handleNav(it.key)} style={{
+                display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                padding: '11px 14px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                background: active ? 'linear-gradient(100deg,rgba(124,92,252,.22),rgba(42,111,219,.16))' : 'transparent',
+                border: active ? '1px solid var(--border-default)' : '1px solid transparent',
+                color: active ? 'var(--text-strong)' : 'var(--text-muted)',
+                fontSize: 14, fontWeight: 600, transition: 'all 140ms',
+              }}>
+                <span style={{ color: active ? 'var(--celeste-300)' : 'inherit' }}>{Ic(it.icon)}</span>
+                <span style={{ flex: 1, textAlign: 'left' }}>{it.label}</span>
+                {it.badge > 0 && (
+                  <span style={{ minWidth: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: '#fff',
+                    background: 'var(--morado-500)', borderRadius: 'var(--radius-pill)' }}>
+                    {it.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Cambiar marco */}
+        <button onClick={onChangeFramework} style={{
+          display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+          padding: '10px 14px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+          background: 'transparent', border: '1px solid var(--border-subtle)',
+          color: 'var(--text-muted)', fontSize: 13, fontWeight: 600, transition: 'all 140ms' }}>
+          {Ic('layout-grid', { width: 16, height: 16 })}
+          <span style={{ flex: 1, textAlign: 'left' }}>Cambiar marco</span>
         </button>
-      </div>
-    </aside>
+
+        {/* User footer */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12,
+          background: 'var(--surface-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+            background: 'var(--grad-shield)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 13, color: '#fff' }}>
+            {initials}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-strong)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {user?.email}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>Encargado COMGES</div>
+          </div>
+          <button onClick={onLogout} title="Cerrar sesión"
+            style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 4 }}>
+            {Ic('log-out', { width: 16, height: 16 })}
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
 
 // ════════════════════════════════════════════════════
 // ▸ TOPBAR
 // ════════════════════════════════════════════════════
-function Topbar({ title }) {
+function Topbar({ title, onMenuToggle, isMobile }) {
   return (
-    <header style={{ height: 72, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 16,
-      padding: '0 28px', borderBottom: '1px solid var(--border-subtle)' }}>
-      <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 24, color: 'var(--text-strong)' }}>
+    <header style={{ height: isMobile ? 58 : 72, flexShrink: 0, display: 'flex', alignItems: 'center',
+      gap: isMobile ? 10 : 16, padding: isMobile ? '0 16px' : '0 28px',
+      borderBottom: '1px solid var(--border-subtle)' }}>
+      {isMobile && (
+        <button onClick={onMenuToggle} aria-label="Abrir menú"
+          style={{ background: 'none', border: 'none', color: 'var(--text-strong)', cursor: 'pointer',
+            width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 'var(--radius-md)', flexShrink: 0 }}>
+          {Ic('menu', { width: 24, height: 24 })}
+        </button>
+      )}
+      <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600,
+        fontSize: isMobile ? 18 : 24, color: 'var(--text-strong)',
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {title}
       </h2>
       <div style={{ flex: 1 }} />
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 24, padding: '0 11px',
-        background: 'rgba(16,185,129,.16)', border: '1px solid rgba(110,231,183,.32)',
-        borderRadius: 'var(--radius-pill)', fontFamily: 'JetBrains Mono, monospace',
-        fontSize: 10.5, fontWeight: 600, color: 'var(--success-300)', textTransform: 'uppercase' }}>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', boxShadow: '0 0 6px currentColor' }} />
-        Sistema operativo
-      </span>
+      {!isMobile && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 24, padding: '0 11px',
+          background: 'rgba(16,185,129,.16)', border: '1px solid rgba(110,231,183,.32)',
+          borderRadius: 'var(--radius-pill)', fontFamily: 'JetBrains Mono, monospace',
+          fontSize: 10.5, fontWeight: 600, color: 'var(--success-300)', textTransform: 'uppercase' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', boxShadow: '0 0 6px currentColor' }} />
+          Sistema operativo
+        </span>
+      )}
     </header>
+  );
+}
+
+// ════════════════════════════════════════════════════
+// ▸ SELECTION SCREEN (elegir marco: ISO 27001 o COMGES)
+// ════════════════════════════════════════════════════
+function SelectionScreen({ onSelect, onLogout, user }) {
+  const FRAMEWORKS = [
+    {
+      key: 'comges', icon: 'shield-check', title: 'COMGES',
+      subtitle: 'Marco ANCI · Salud',
+      desc: 'Gestión de cumplimiento bajo el marco chileno de ciberseguridad para OIV de salud.',
+      ready: true,
+    },
+    {
+      key: 'iso', icon: 'globe', title: 'ISO 27001',
+      subtitle: 'Estándar internacional',
+      desc: 'Sistema de Gestión de Seguridad de la Información (SGSI) según ISO/IEC 27001.',
+      ready: false,
+    },
+  ];
+
+  return (
+    <div style={{ minHeight: '100vh', width: '100%', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center', padding: '32px 20px', overflowY: 'auto' }}>
+
+      <div className="anim-fade" style={{ width: '100%', maxWidth: 820, display: 'flex',
+        flexDirection: 'column', alignItems: 'center' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+          <CsShieldLogo size={56} gradId="sel-shield" />
+          <div style={{ textAlign: 'center' }}>
+            <h1 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700,
+              fontSize: 'clamp(22px, 5vw, 30px)', color: 'var(--text-strong)' }}>
+              Seleccione categorías
+            </h1>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 8, maxWidth: 480 }}>
+              Elija el marco de cumplimiento con el que desea trabajar.
+            </p>
+          </div>
+        </div>
+
+        {/* Framework buttons */}
+        <div className="sel-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 20, width: '100%', marginTop: 28 }}>
+          {FRAMEWORKS.map(f => (
+            <button key={f.key} onClick={() => onSelect(f.key)}
+              style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                textAlign: 'center', gap: 14, padding: '36px 24px', cursor: 'pointer',
+                background: 'var(--surface-card)', border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-lg)', backdropFilter: 'var(--blur-glass)',
+                color: 'var(--text-body)', transition: 'transform 160ms, border-color 160ms, box-shadow 160ms',
+                minHeight: 220 }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.borderColor = 'var(--celeste-400)';
+                e.currentTarget.style.boxShadow = 'var(--glow-azul)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.borderColor = 'var(--border-default)';
+                e.currentTarget.style.boxShadow = 'none'; }}>
+
+              {!f.ready && (
+                <span style={{ position: 'absolute', top: 14, right: 14, fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 9.5, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase',
+                  color: 'var(--warning-300)', background: 'rgba(244,183,64,.14)',
+                  border: '1px solid rgba(252,215,126,.3)', borderRadius: 'var(--radius-pill)',
+                  padding: '3px 9px' }}>
+                  Próximamente
+                </span>
+              )}
+
+              <div style={{ width: 76, height: 76, borderRadius: 'var(--radius-lg)',
+                background: 'var(--grad-shield)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', boxShadow: 'var(--shadow-md)' }}>
+                {Ic(f.icon, { width: 38, height: 38 })}
+              </div>
+
+              <div>
+                <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700,
+                  fontSize: 22, color: 'var(--text-strong)' }}>
+                  {f.title}
+                </div>
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10,
+                  color: 'var(--text-faint)', marginTop: 4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  {f.subtitle}
+                </div>
+              </div>
+
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5, maxWidth: 280 }}>
+                {f.desc}
+              </p>
+            </button>
+          ))}
+        </div>
+
+        {/* Logout footer */}
+        <button onClick={onLogout}
+          style={{ marginTop: 32, background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--text-faint)', fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+          {Ic('log-out', { width: 14, height: 14 })}
+          Salir ({user?.email})
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -535,9 +752,9 @@ function DashboardScreen({ userId }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Row 1 - Two Compliance Rings */}
-      <div style={{ display: 'flex', gap: 18 }}>
+      <div className="dash-row" style={{ display: 'flex', gap: 18 }}>
         {/* Compliance ring - Global */}
-        <div style={{ ...CARD, display: 'flex', alignItems: 'center', gap: 26, minWidth: 380, boxShadow: 'var(--glow-azul)' }}>
+        <div className="dash-ring-card" style={{ ...CARD, flex: 1, display: 'flex', alignItems: 'center', gap: 26, minWidth: 380, boxShadow: 'var(--glow-azul)' }}>
           <svg style={{ width: 140, height: 140, flexShrink: 0 }} viewBox="0 0 150 150" fill="none">
             <defs>
               <linearGradient id="dash-ring-grad-global" x1="0" y1="0" x2="1" y2="1">
@@ -568,7 +785,7 @@ function DashboardScreen({ userId }) {
         </div>
 
         {/* Compliance ring - Real */}
-        <div style={{ ...CARD, display: 'flex', alignItems: 'center', gap: 26, minWidth: 380, boxShadow: 'var(--glow-azul)' }}>
+        <div className="dash-ring-card" style={{ ...CARD, flex: 1, display: 'flex', alignItems: 'center', gap: 26, minWidth: 380, boxShadow: 'var(--glow-azul)' }}>
           <svg style={{ width: 140, height: 140, flexShrink: 0 }} viewBox="0 0 150 150" fill="none">
             <defs>
               <linearGradient id="dash-ring-grad-real" x1="0" y1="0" x2="1" y2="1">
@@ -599,10 +816,10 @@ function DashboardScreen({ userId }) {
         </div>
       </div>
 
-      {/* Row 2 */}
+      {/* Row 2 - Stat grid */}
       <div style={{ display: 'flex', gap: 18 }}>
         {/* Stat grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="dash-stat-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, width: '100%' }}>
           {[
             { icon: 'target',        color: 'var(--celeste-300)', val: enriched.length,   label: 'Objetivos COMGES' },
             { icon: 'shield-alert',  color: 'var(--danger-300)',  val: openInc,            label: 'Incidentes abiertos' },
@@ -618,8 +835,8 @@ function DashboardScreen({ userId }) {
         </div>
       </div>
 
-      {/* Row 2 */}
-      <div style={{ display: 'flex', gap: 18 }}>
+      {/* Row 3 - Progress + incidents */}
+      <div className="dash-row" style={{ display: 'flex', gap: 18 }}>
         {/* Progress bars */}
         <div style={{ ...CARD, flex: 1.4 }}>
           <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 16, color: 'var(--text-strong)', marginBottom: 18 }}>
@@ -739,9 +956,9 @@ function ObjectivesScreen({ userId }) {
 
             return (
               <div key={o.id} style={CARD} className="anim-fade">
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                <div className="obj-row" style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
                   {/* Ring */}
-                  <svg style={{ width: 80, height: 80, flexShrink: 0 }} viewBox="0 0 100 100" fill="none">
+                  <svg className="obj-ring" style={{ width: 80, height: 80, flexShrink: 0 }} viewBox="0 0 100 100" fill="none">
                     <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7"/>
                     <circle cx="50" cy="50" r="40" fill="none" stroke={TONE_STROKE[tone]} strokeWidth="7"
                       strokeDasharray={`${RC * progress / 100} ${RC}`}
@@ -753,7 +970,7 @@ function ObjectivesScreen({ userId }) {
                   </svg>
 
                   {/* Info */}
-                  <div style={{ flex: 1 }}>
+                  <div className="obj-info" style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
                       <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--celeste-300)' }}>{o.code}</span>
                       <Badge tone={tone}>{tone === 'ok' ? 'En meta' : tone === 'warn' ? 'En progreso' : 'Atrasado'}</Badge>
@@ -769,7 +986,7 @@ function ObjectivesScreen({ userId }) {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                  <div className="obj-actions" style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
                     <button onClick={() => setOpenId(isOpen ? null : o.id)} title="Ver tareas"
                       style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 6 }}>
                       {Ic(isOpen ? 'chevron-up' : 'chevron-down')}
@@ -1147,29 +1364,31 @@ function EvidenceScreen({ userId }) {
                       : docs.map(doc => {
                           const statusTone = doc.status === 'Aprobado' ? 'ok' : doc.status === 'Rechazado' ? 'risk' : 'warn';
                           return (
-                            <div key={doc.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                            <div key={doc.id} className="ev-doc-row" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
                               {Ic('file-text', { width: 16, height: 16, color: 'var(--celeste-300)', flexShrink: 0 })}
-                              <div style={{ flex: 1 }}>
+                              <div className="ev-doc-info" style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 500, color: 'var(--text-strong)', fontSize: 13.5 }}>{doc.name}</div>
                                 <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
                                   {doc.format}{doc.size ? ` · ${doc.size}` : ''} · {fmtDate(doc.created_at)}
                                 </span>
                               </div>
                               <Badge tone={statusTone}>{doc.status}</Badge>
-                              {doc.file_url && (
-                                <a href={doc.file_url} target="_blank" rel="noreferrer"
-                                  style={{ color: 'var(--azul-400)', display: 'flex', alignItems: 'center' }}>
-                                  {Ic('external-link', { width: 14, height: 14 })}
-                                </a>
-                              )}
-                              <button onClick={() => setModal(doc)}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 4 }}>
-                                {Ic('pencil', { width: 14, height: 14 })}
-                              </button>
-                              <button onClick={() => del(doc.id)}
-                                style={{ background: 'none', border: 'none', color: 'var(--danger-500)', cursor: 'pointer', padding: 4 }}>
-                                {Ic('trash-2', { width: 14, height: 14 })}
-                              </button>
+                              <div className="ev-doc-actions" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                {doc.file_url && (
+                                  <a href={doc.file_url} target="_blank" rel="noreferrer"
+                                    style={{ color: 'var(--azul-400)', display: 'flex', alignItems: 'center', padding: 4 }}>
+                                    {Ic('external-link', { width: 14, height: 14 })}
+                                  </a>
+                                )}
+                                <button onClick={() => setModal(doc)}
+                                  style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 4 }}>
+                                  {Ic('pencil', { width: 14, height: 14 })}
+                                </button>
+                                <button onClick={() => del(doc.id)}
+                                  style={{ background: 'none', border: 'none', color: 'var(--danger-500)', cursor: 'pointer', padding: 4 }}>
+                                  {Ic('trash-2', { width: 14, height: 14 })}
+                                </button>
+                              </div>
                             </div>
                           );
                         })
@@ -1284,13 +1503,13 @@ function OrgScreen({ userId }) {
   if (!isEditing && f.org_name) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 1000 }}>
-        <div style={{ ...CARD, display: 'flex', gap: 24, alignItems: 'center' }}>
+        <div className="org-header" style={{ ...CARD, display: 'flex', gap: 24, alignItems: 'center' }}>
           <div style={{ width: 80, height: 80, borderRadius: 'var(--radius-lg)', flexShrink: 0,
             background: 'var(--grad-shield)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 26, color: '#fff' }}>
             {initials}
           </div>
-          <div style={{ flex: 1 }}>
+          <div className="org-header-info" style={{ flex: 1, minWidth: 0 }}>
             <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 22, color: 'var(--text-strong)' }}>
               {f.org_name}
             </h2>
@@ -1360,13 +1579,13 @@ function OrgScreen({ userId }) {
   return (
     <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 900 }}>
       {/* Header card */}
-      <div style={{ ...CARD, display: 'flex', gap: 24, alignItems: 'center' }}>
+      <div className="org-header" style={{ ...CARD, display: 'flex', gap: 24, alignItems: 'center' }}>
         <div style={{ width: 80, height: 80, borderRadius: 'var(--radius-lg)', flexShrink: 0,
           background: 'var(--grad-shield)', display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 26, color: '#fff' }}>
           {initials}
         </div>
-        <div style={{ flex: 1 }}>
+        <div className="org-header-info" style={{ flex: 1, minWidth: 0 }}>
           <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 22, color: 'var(--text-strong)' }}>
             {f.org_name || 'Configura tu organismo'}
           </h2>
@@ -1374,10 +1593,12 @@ function OrgScreen({ userId }) {
             {f.org_tipo_oiv || 'Tipo de OIV no configurado'} · {f.org_ciudad || '—'}
           </p>
         </div>
-        <Btn type="submit" disabled={saving} variant={saved ? 'success' : 'primary'}>
-          {saving ? 'Guardando…' : saved ? `${Ic('check', { width: 15, height: 15 })} ¡Guardado!` : 'Guardar cambios'}
-        </Btn>
-        <Btn variant="ghost" onClick={() => setIsEditing(false)}>Cancelar</Btn>
+        <div className="org-header-actions" style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+          <Btn type="submit" disabled={saving} variant={saved ? 'success' : 'primary'}>
+            {saving ? 'Guardando…' : saved ? `${Ic('check', { width: 15, height: 15 })} ¡Guardado!` : 'Guardar cambios'}
+          </Btn>
+          <Btn variant="ghost" onClick={() => setIsEditing(false)}>Cancelar</Btn>
+        </div>
       </div>
 
       <div style={CARD}>
@@ -1430,13 +1651,58 @@ function OrgScreen({ userId }) {
 }
 
 // ════════════════════════════════════════════════════
+// ▸ ISO 27001 — PANTALLA PENDIENTE
+// ════════════════════════════════════════════════════
+function IsoPendingScreen() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      textAlign: 'center', minHeight: '60vh', gap: 18, padding: 20 }}>
+      <div style={{ width: 88, height: 88, borderRadius: 'var(--radius-lg)',
+        background: 'var(--grad-shield)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#fff', boxShadow: 'var(--shadow-md)' }}>
+        {Ic('globe', { width: 44, height: 44 })}
+      </div>
+      <div>
+        <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 24, color: 'var(--text-strong)' }}>
+          ISO 27001
+        </h2>
+        <p style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 10, maxWidth: 440 }}>
+          El módulo de cumplimiento ISO/IEC 27001 está en desarrollo. Pronto podrás gestionar tus
+          controles del SGSI desde aquí.
+        </p>
+      </div>
+      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, fontWeight: 600,
+        letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--warning-300)',
+        background: 'rgba(244,183,64,.14)', border: '1px solid rgba(252,215,126,.3)',
+        borderRadius: 'var(--radius-pill)', padding: '5px 13px' }}>
+        Próximamente
+      </span>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════
 // ▸ APP ROOT
 // ════════════════════════════════════════════════════
 function App() {
-  const [user, setUser]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [current, setCurrent] = useState('dashboard');
-  const [openInc, setOpenInc] = useState(0);
+  const [user, setUser]         = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [framework, setFramework] = useState(null); // null | 'comges' | 'iso'
+  const [current, setCurrent]   = useState('dashboard');
+  const [openInc, setOpenInc]   = useState(0);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Detectar viewport
+  useEffect(() => {
+    const onResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (!mobile) setDrawerOpen(false);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     if (NOT_CONFIGURED) { setLoading(false); return; }
@@ -1445,20 +1711,57 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Keep sidebar incident badge in sync
+  // Keep sidebar incident badge in sync (solo COMGES)
   useEffect(() => {
-    if (!user) return;
+    if (!user || framework !== 'comges') return;
     (async () => {
       const { count } = await sb.from('incidents').select('id', { count: 'exact', head: true })
         .eq('user_id', user.id).neq('status', 'Resuelto');
       setOpenInc(count || 0);
     })();
-  }, [user, current]);
+  }, [user, current, framework]);
 
   if (loading) return <Spinner full />;
   if (NOT_CONFIGURED) return <SetupScreen />;
   if (!user) return <LoginScreen onLogin={setUser} />;
 
+  // Pantalla de selección de marco
+  if (!framework) {
+    return (
+      <SelectionScreen
+        user={user}
+        onSelect={(fw) => { setFramework(fw); setCurrent('dashboard'); }}
+        onLogout={() => sb.auth.signOut()}
+      />
+    );
+  }
+
+  // ISO: pantalla pendiente (con sidebar reducido para poder volver)
+  if (framework === 'iso') {
+    return (
+      <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+        <Sidebar
+          current="iso"
+          onNavigate={() => {}}
+          user={user}
+          openIncidents={0}
+          onLogout={() => sb.auth.signOut()}
+          onChangeFramework={() => { setFramework(null); setDrawerOpen(false); }}
+          isMobile={isMobile}
+          isOpen={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+        />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+          <Topbar title="ISO 27001" isMobile={isMobile} onMenuToggle={() => setDrawerOpen(true)} />
+          <div style={{ flex: 1, padding: isMobile ? 16 : 28, overflowY: 'auto' }}>
+            <IsoPendingScreen />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // COMGES: app completa
   const SCREENS = {
     dashboard:  { title: 'Panel de control',           comp: DashboardScreen },
     objectives: { title: 'Objetivos COMGES',           comp: ObjectivesScreen },
@@ -1476,10 +1779,14 @@ function App() {
         user={user}
         openIncidents={openInc}
         onLogout={() => sb.auth.signOut()}
+        onChangeFramework={() => { setFramework(null); setDrawerOpen(false); }}
+        isMobile={isMobile}
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
       />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar title={title} />
-        <div style={{ flex: 1, padding: 28, overflowY: 'auto' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+        <Topbar title={title} isMobile={isMobile} onMenuToggle={() => setDrawerOpen(true)} />
+        <div style={{ flex: 1, padding: isMobile ? 16 : 28, overflowY: 'auto' }}>
           <Screen userId={user.id} />
         </div>
       </div>
