@@ -889,7 +889,7 @@ function DashboardScreen({ userId }) {
 // ════════════════════════════════════════════════════
 // ▸ OBJECTIVES SCREEN
 // ════════════════════════════════════════════════════
-function ObjectivesScreen({ userId }) {
+function ObjectivesScreen({ userId, onNavigate, onHighlightEvidence }) {
   const [objectives, setObjectives] = useState([]);
   const [evidence, setEvidence]     = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -1031,8 +1031,8 @@ function ObjectivesScreen({ userId }) {
                             </div>
                             {ev1 || ev2 ? (
                               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                {ev1 && <span style={{ fontSize: 11, color: 'var(--celeste-300)', background: 'rgba(86,194,240,.15)', padding: '3px 8px', borderRadius: '3px' }}>{ev1.name} <button onClick={() => updateTaskEvidence(t.id, 'evidence_id', null)} style={{ background: 'none', border: 'none', color: 'var(--celeste-300)', cursor: 'pointer', padding: 0, fontSize: '12px', marginLeft: '4px' }}>×</button></span>}
-                                {ev2 && <span style={{ fontSize: 11, color: 'var(--celeste-300)', background: 'rgba(86,194,240,.15)', padding: '3px 8px', borderRadius: '3px' }}>{ev2.name} <button onClick={() => updateTaskEvidence(t.id, 'evidence_id_2', null)} style={{ background: 'none', border: 'none', color: 'var(--celeste-300)', cursor: 'pointer', padding: 0, fontSize: '12px', marginLeft: '4px' }}>×</button></span>}
+                                {ev1 && <span style={{ fontSize: 11, color: 'var(--celeste-300)', background: 'rgba(86,194,240,.15)', padding: '3px 8px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => { onHighlightEvidence(ev1.id); onNavigate('evidence'); }}>{ev1.name} <button onClick={(e) => { e.stopPropagation(); updateTaskEvidence(t.id, 'evidence_id', null); }} style={{ background: 'none', border: 'none', color: 'var(--celeste-300)', cursor: 'pointer', padding: 0, fontSize: '12px' }}>×</button></span>}
+                                {ev2 && <span style={{ fontSize: 11, color: 'var(--celeste-300)', background: 'rgba(86,194,240,.15)', padding: '3px 8px', borderRadius: '3px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => { onHighlightEvidence(ev2.id); onNavigate('evidence'); }}>{ev2.name} <button onClick={(e) => { e.stopPropagation(); updateTaskEvidence(t.id, 'evidence_id_2', null); }} style={{ background: 'none', border: 'none', color: 'var(--celeste-300)', cursor: 'pointer', padding: 0, fontSize: '12px' }}>×</button></span>}
                               </div>
                             ) : null}
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -1314,7 +1314,7 @@ function IncDetail({ incident: i, onClose }) {
 // ════════════════════════════════════════════════════
 // ▸ EVIDENCE SCREEN
 // ════════════════════════════════════════════════════
-function EvidenceScreen({ userId }) {
+function EvidenceScreen({ userId, highlightEvidenceId }) {
   const [objectives, setObjectives] = useState([]);
   const [evidence, setEvidence]     = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -1385,7 +1385,7 @@ function EvidenceScreen({ userId }) {
                       : docs.map(doc => {
                           const statusTone = doc.status === 'Aprobado' ? 'ok' : doc.status === 'Rechazado' ? 'risk' : 'warn';
                           return (
-                            <div key={doc.id} className="ev-doc-row" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                            <div key={doc.id} className="ev-doc-row" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--border-subtle)', background: highlightEvidenceId === doc.id ? 'rgba(86,194,240,.2)' : 'transparent', borderRadius: '6px' }}>
                               {Ic('file-text', { width: 16, height: 16, color: 'var(--celeste-300)', flexShrink: 0 })}
                               <div className="ev-doc-info" style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 500, color: 'var(--text-strong)', fontSize: 13.5 }}>{doc.name}</div>
@@ -1712,6 +1712,7 @@ function App() {
   const [current, setCurrent]   = useState('dashboard');
   const [openInc, setOpenInc]   = useState(0);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+  const [highlightEvidenceId, setHighlightEvidenceId] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Detectar viewport
@@ -1808,7 +1809,7 @@ function App() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         <Topbar title={title} isMobile={isMobile} onMenuToggle={() => setDrawerOpen(true)} />
         <div style={{ flex: 1, padding: isMobile ? 16 : 28, overflowY: 'auto' }}>
-          <Screen userId={user.id} />
+          <Screen userId={user.id} onNavigate={setCurrent} onHighlightEvidence={setHighlightEvidenceId} highlightEvidenceId={highlightEvidenceId} />
         </div>
       </div>
     </div>
