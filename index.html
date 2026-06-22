@@ -35,7 +35,6 @@
     objective_id uuid references public.objectives(id) on delete cascade not null,
     user_id uuid references auth.users(id) on delete cascade not null,
     name text not null, done boolean default false,
-    evidence_id uuid references public.evidence(id) on delete set null,
     created_at timestamptz default now()
   );
   create table public.incidents (
@@ -892,7 +891,6 @@ function DashboardScreen({ userId }) {
 // ════════════════════════════════════════════════════
 function ObjectivesScreen({ userId }) {
   const [objectives, setObjectives] = useState([]);
-  const [evidence, setEvidence]     = useState([]);
   const [loading, setLoading]       = useState(true);
   const [openId, setOpenId]         = useState(null);
   const [modal, setModal]           = useState(null); // null | 'new' | objective
@@ -900,12 +898,8 @@ function ObjectivesScreen({ userId }) {
   const [saving, setSaving]         = useState(false);
 
   const load = useCallback(async () => {
-    const [objRes, evRes] = await Promise.all([
-      sb.from('objectives').select('*, tasks(*)').eq('user_id', userId).order('code'),
-      sb.from('evidence').select('*').eq('user_id', userId).order('created_at', { ascending: false })
-    ]);
-    setObjectives(objRes.data || []);
-    setEvidence(evRes.data || []);
+    const { data } = await sb.from('objectives').select('*, tasks(*)').eq('user_id', userId).order('code');
+    setObjectives(data || []);
     setLoading(false);
   }, [userId]);
 
@@ -939,11 +933,6 @@ function ObjectivesScreen({ userId }) {
 
   const deleteTask = async (taskId) => {
     await sb.from('tasks').delete().eq('id', taskId);
-    load();
-  };
-
-  const setTaskEvidence = async (taskId, evidenceId) => {
-    await sb.from('tasks').update({ evidence_id: evidenceId || null }).eq('id', taskId);
     load();
   };
 
@@ -1020,33 +1009,18 @@ function ObjectivesScreen({ userId }) {
                       {(o.tasks || []).length === 0 && (
                         <p style={{ fontSize: 13, color: 'var(--text-faint)' }}>Sin tareas aún. Agrega la primera.</p>
                       )}
-                      {(o.tasks || []).sort((a, b) => a.done - b.done).map(t => {
-                        const linkedEvidence = evidence.find(e => e.id === t.evidence_id);
-                        return (
-                          <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <input type="checkbox" checked={t.done} onChange={() => toggleTask(t.id, t.done)} style={{ width: 17, height: 17, flexShrink: 0 }} />
-                              <span style={{ flex: 1, fontSize: 13.5, color: 'var(--text-body)' }}>
-                                {t.name}
-                              </span>
-                              {linkedEvidence && (
-                                <span style={{ fontSize: 11, color: 'var(--celeste-300)', background: 'rgba(86,194,240,.15)', padding: '3px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-                                  {linkedEvidence.name}
-                                </span>
-                              )}
-                              <button onClick={() => deleteTask(t.id)}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 2, opacity: 0.5, flexShrink: 0 }}>
-                                {Ic('x', { width: 14, height: 14 })}
-                              </button>
-                            </div>
-                            <select value={t.evidence_id || ''} onChange={(e) => setTaskEvidence(t.id, e.target.value)}
-                              style={{ fontSize: 12, padding: '6px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: '6px', color: 'var(--text-body)' }}>
-                              <option value="">Sin vincular</option>
-                              {evidence.map(e => <option key={e.id} value={e.id}>{e.name} ({e.format})</option>)}
-                            </select>
-                          </div>
-                        );
-                      })}
+                      {(o.tasks || []).map(t => (
+                        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <input type="checkbox" checked={t.done} onChange={() => toggleTask(t.id, t.done)} style={{ width: 17, height: 17 }} />
+                          <span style={{ flex: 1, fontSize: 13.5, color: t.done ? 'var(--text-faint)' : 'var(--text-body)', textDecoration: t.done ? 'line-through' : 'none' }}>
+                            {t.name}
+                          </span>
+                          <button onClick={() => deleteTask(t.id)}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 2, opacity: 0.5 }}>
+                            {Ic('x', { width: 14, height: 14 })}
+                          </button>
+                        </div>
+                      ))}
                     </div>
 
                     {addTaskId === o.id
@@ -1777,4 +1751,50 @@ function App() {
           isOpen={drawerOpen}
           onClose={() => setDrawerOpen(false)}
         />
-        <div style={{ flex: 1, display: 'flex', flexDirection
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+          <Topbar title="ISO 27001" isMobile={isMobile} onMenuToggle={() => setDrawerOpen(true)} />
+          <div style={{ flex: 1, padding: isMobile ? 16 : 28, overflowY: 'auto' }}>
+            <IsoPendingScreen />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // COMGES: app completa
+  const SCREENS = {
+    dashboard:  { title: 'Panel de control',           comp: DashboardScreen },
+    objectives: { title: 'Objetivos COMGES',           comp: ObjectivesScreen },
+    incidents:  { title: 'Incidentes de seguridad',    comp: IncidentsScreen },
+    evidence:   { title: 'Evidencias de cumplimiento', comp: EvidenceScreen },
+    org:        { title: 'Configuración del organismo', comp: OrgScreen },
+  };
+  const { title, comp: Screen } = SCREENS[current] || SCREENS.dashboard;
+
+  return (
+    <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+      <Sidebar
+        current={current}
+        onNavigate={setCurrent}
+        user={user}
+        openIncidents={openInc}
+        onLogout={() => sb.auth.signOut()}
+        onChangeFramework={() => { setFramework(null); setDrawerOpen(false); }}
+        isMobile={isMobile}
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+        <Topbar title={title} isMobile={isMobile} onMenuToggle={() => setDrawerOpen(true)} />
+        <div style={{ flex: 1, padding: isMobile ? 16 : 28, overflowY: 'auto' }}>
+          <Screen userId={user.id} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
