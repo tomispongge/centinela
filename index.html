@@ -889,22 +889,17 @@ function DashboardScreen({ userId }) {
 // ════════════════════════════════════════════════════
 // ▸ OBJECTIVES SCREEN
 // ════════════════════════════════════════════════════
-function ObjectivesScreen({ userId, onNavigate, onHighlightEvidence }) {
+function ObjectivesScreen({ userId }) {
   const [objectives, setObjectives] = useState([]);
-  const [evidence, setEvidence]     = useState([]);
   const [loading, setLoading]       = useState(true);
   const [openId, setOpenId]         = useState(null);
-  const [modal, setModal]           = useState(null);
+  const [modal, setModal]           = useState(null); // null | 'new' | objective
   const [addTaskId, setAddTaskId]   = useState(null);
   const [saving, setSaving]         = useState(false);
 
   const load = useCallback(async () => {
-    const [objRes, evRes] = await Promise.all([
-      sb.from('objectives').select('*, tasks(*)').eq('user_id', userId).order('code'),
-      sb.from('evidence').select('*').eq('user_id', userId).order('created_at', { ascending: false })
-    ]);
-    setObjectives(objRes.data || []);
-    setEvidence(evRes.data || []);
+    const { data } = await sb.from('objectives').select('*, tasks(*)').eq('user_id', userId).order('code');
+    setObjectives(data || []);
     setLoading(false);
   }, [userId]);
 
@@ -941,11 +936,13 @@ function ObjectivesScreen({ userId, onNavigate, onHighlightEvidence }) {
     load();
   };
 
-  const updateEvidence = async (taskId, field, evId) => {
-    const upd = {};
-    upd[field] = evId || null;
-    await sb.from('tasks').update(upd).eq('id', taskId);
-    load();
+  const saveTaskEvidence = async (taskId, field, evidenceId) => {
+    console.log('Saving', field, '=', evidenceId, 'to task', taskId);
+    const updateObj = {};
+    updateObj[field] = evidenceId || null;
+    const { error } = await sb.from('tasks').update(updateObj).eq('id', taskId);
+    if (error) console.error('Error:', error);
+    else load();
   };
 
   if (loading) return <Spinner />;
@@ -1024,36 +1021,22 @@ function ObjectivesScreen({ userId, onNavigate, onHighlightEvidence }) {
                       {(o.tasks || []).sort((a, b) => a.done - b.done).map(t => {
                         const ev1 = evidence.find(e => e.id === t.evidence_id);
                         const ev2 = evidence.find(e => e.id === t.evidence_id_2);
-                        const usedEvidenceIds = [t.evidence_id, t.evidence_id_2].filter(Boolean);
-                        const availableEv = evidence.filter(e => !usedEvidenceIds.includes(e.id));
-                        return (
-                          <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <input type="checkbox" checked={t.done} onChange={() => toggleTask(t.id, t.done)} style={{ width: 17, height: 17, flexShrink: 0 }} />
-                              <span style={{ flex: 1, fontSize: 13.5, color: 'var(--text-body)' }}>{t.name}</span>
-                              <button onClick={() => deleteTask(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 2, opacity: 0.5, flexShrink: 0 }}>{Ic('x', { width: 14, height: 14 })}</button>
-                            </div>
-                            {(ev1 || ev2) && (
-                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                                {ev1 && (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--celeste-300)', background: 'rgba(86,194,240,.15)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => { if(onHighlightEvidence && onNavigate) { onHighlightEvidence(ev1.id); onNavigate('evidence'); } }}>
-                                    <span>{ev1.name}</span>
-                                    <button onClick={(e) => { e.stopPropagation(); updateEvidence(t.id, 'evidence_id', null); }} style={{ background: 'none', border: 'none', color: 'var(--celeste-300)', cursor: 'pointer', padding: 0, fontSize: '14px' }}>×</button>
-                                  </div>
-                                )}
-                                {ev2 && (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--celeste-300)', background: 'rgba(86,194,240,.15)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }} onClick={() => { if(onHighlightEvidence && onNavigate) { onHighlightEvidence(ev2.id); onNavigate('evidence'); } }}>
-                                    <span>{ev2.name}</span>
-                                    <button onClick={(e) => { e.stopPropagation(); updateEvidence(t.id, 'evidence_id_2', null); }} style={{ background: 'none', border: 'none', color: 'var(--celeste-300)', cursor: 'pointer', padding: 0, fontSize: '14px' }}>×</button>
-                                  </div>
-                                )}
-                                {!ev2 && <button onClick={() => setAddTaskId(t.id === addTaskId ? null : t.id)} style={{ fontSize: 11, padding: '4px 8px', background: 'rgba(79,132,242,.15)', border: '1px solid rgba(79,132,242,.3)', borderRadius: '4px', color: 'var(--azul-400)', cursor: 'pointer' }}>+</button>}
-                              </div>
-                            )}
-                            {!ev1 && <select onChange={(e) => updateEvidence(t.id, 'evidence_id', e.target.value)} style={{ fontSize: 11, padding: '4px 8px', background: 'rgba(79,132,242,.15)', border: '1px solid rgba(79,132,242,.3)', borderRadius: '4px', color: 'var(--azul-400)', cursor: 'pointer' }}><option value="">Selecciona evidencia 1</option>{evidence.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select>}
-                            {addTaskId === t.id && ev1 && availableEv.length > 0 && <select onChange={(e) => { updateEvidence(t.id, 'evidence_id_2', e.target.value); setAddTaskId(null); }} style={{ fontSize: 11, padding: '4px 8px', background: 'rgba(79,132,242,.15)', border: '1px solid rgba(79,132,242,.3)', borderRadius: '4px', color: 'var(--azul-400)', cursor: 'pointer' }}><option value="">Selecciona evidencia 2</option>{availableEv.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select>}
+                        const usedIds = [t.evidence_id, t.evidence_id_2].filter(Boolean);
+                        const availEv = evidence.filter(e => !usedIds.includes(e.id));
+                        return <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <input type="checkbox" checked={t.done} onChange={() => toggleTask(t.id, t.done)} style={{ width: 17, height: 17, flexShrink: 0 }} />
+                            <span style={{ flex: 1, fontSize: 13.5, color: 'var(--text-body)' }}>{t.name}</span>
+                            <button onClick={() => deleteTask(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 2, opacity: 0.5, flexShrink: 0 }}>{Ic('x', { width: 14, height: 14 })}</button>
                           </div>
-                        );
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                            {!ev1 && <select onChange={(e) => saveTaskEvidence(t.id, 'evidence_id', e.target.value || null)} style={{ fontSize: 11, padding: '4px 8px', background: 'rgba(79,132,242,.15)', border: '1px solid rgba(79,132,242,.3)', borderRadius: '4px', color: 'var(--azul-400)' }}><option value="">Selecciona evidencia 1</option>{evidence.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select>}
+                            {ev1 && <span style={{ fontSize: 11, color: 'var(--celeste-300)', background: 'rgba(86,194,240,.15)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }} onClick={() => { if(onHighlightEvidence) onHighlightEvidence(ev1.id); if(onNavigate) onNavigate('evidence'); }}>{ev1.name} <button onClick={(e) => { e.stopPropagation(); saveTaskEvidence(t.id, 'evidence_id', null); }} style={{ background: 'none', border: 'none', color: 'var(--celeste-300)', cursor: 'pointer', padding: 0, fontSize: '12px' }}>×</button></span>}
+                            {ev1 && !ev2 && <button onClick={() => setAddTaskId(addTaskId === t.id ? null : t.id)} style={{ fontSize: 11, padding: '4px 8px', background: 'rgba(79,132,242,.15)', border: '1px solid rgba(79,132,242,.3)', borderRadius: '4px', color: 'var(--azul-400)', cursor: 'pointer' }}>+</button>}
+                            {addTaskId === t.id && ev1 && !ev2 && availEv.length > 0 && <select onChange={(e) => { saveTaskEvidence(t.id, 'evidence_id_2', e.target.value || null); setAddTaskId(null); }} style={{ fontSize: 11, padding: '4px 8px', background: 'rgba(79,132,242,.15)', border: '1px solid rgba(79,132,242,.3)', borderRadius: '4px', color: 'var(--azul-400)' }}><option value="">Selecciona evidencia 2</option>{availEv.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select>}
+                            {ev2 && <span style={{ fontSize: 11, color: 'var(--celeste-300)', background: 'rgba(86,194,240,.15)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }} onClick={() => { if(onHighlightEvidence) onHighlightEvidence(ev2.id); if(onNavigate) onNavigate('evidence'); }}>{ev2.name} <button onClick={(e) => { e.stopPropagation(); saveTaskEvidence(t.id, 'evidence_id_2', null); }} style={{ background: 'none', border: 'none', color: 'var(--celeste-300)', cursor: 'pointer', padding: 0, fontSize: '12px' }}>×</button></span>}
+                          </div>
+                        </div>;
                       })}
                     </div>
 
@@ -1327,7 +1310,7 @@ function IncDetail({ incident: i, onClose }) {
 // ════════════════════════════════════════════════════
 // ▸ EVIDENCE SCREEN
 // ════════════════════════════════════════════════════
-function EvidenceScreen({ userId, highlightEvidenceId }) {
+function EvidenceScreen({ userId }) {
   const [objectives, setObjectives] = useState([]);
   const [evidence, setEvidence]     = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -1398,7 +1381,7 @@ function EvidenceScreen({ userId, highlightEvidenceId }) {
                       : docs.map(doc => {
                           const statusTone = doc.status === 'Aprobado' ? 'ok' : doc.status === 'Rechazado' ? 'risk' : 'warn';
                           return (
-                            <div key={doc.id} className="ev-doc-row" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--border-subtle)', background: highlightEvidenceId === doc.id ? 'rgba(86,194,240,.2)' : 'transparent', borderRadius: '6px' }}>
+                            <div key={doc.id} className="ev-doc-row" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
                               {Ic('file-text', { width: 16, height: 16, color: 'var(--celeste-300)', flexShrink: 0 })}
                               <div className="ev-doc-info" style={{ flex: 1 }}>
                                 <div style={{ fontWeight: 500, color: 'var(--text-strong)', fontSize: 13.5 }}>{doc.name}</div>
@@ -1725,7 +1708,6 @@ function App() {
   const [current, setCurrent]   = useState('dashboard');
   const [openInc, setOpenInc]   = useState(0);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
-  const [highlightEvidenceId, setHighlightEvidenceId] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Detectar viewport
@@ -1822,7 +1804,7 @@ function App() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         <Topbar title={title} isMobile={isMobile} onMenuToggle={() => setDrawerOpen(true)} />
         <div style={{ flex: 1, padding: isMobile ? 16 : 28, overflowY: 'auto' }}>
-          <Screen userId={user.id} onNavigate={setCurrent} onHighlightEvidence={setHighlightEvidenceId} highlightEvidenceId={highlightEvidenceId} />
+          <Screen userId={user.id} />
         </div>
       </div>
     </div>
