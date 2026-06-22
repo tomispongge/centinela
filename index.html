@@ -952,7 +952,9 @@ function ObjectivesScreen({ userId }) {
   };
 
   const setTaskEvidence = async (taskId, field, evidenceId) => {
-    await sb.from('tasks').update({ [field]: evidenceId || null }).eq('id', taskId);
+    const update = {};
+    update[field] = evidenceId || null;
+    await sb.from('tasks').update(update).eq('id', taskId);
     load();
   };
 
@@ -1739,6 +1741,4 @@ function IsoPendingScreen() {
 
 // ════════════════════════════════════════════════════
 // ▸ APP ROOT
-// ════════════════════════════════════════════════════
-function App() {
-  cons
+// ═══════════════════════════════════════════════�
