@@ -912,7 +912,7 @@ function ObjectivesScreen({ userId }) {
     const [objRes, evRes, teRes] = await Promise.all([
       sb.from('objectives').select('*, tasks(*)').eq('user_id', userId).order('code'),
       sb.from('evidence').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
-      sb.from('task_evidence').select('task_id, evidence_id, evidence(*)').eq('user_id', userId)
+      sb.from('task_evidence').select('task_id, evidence:evidence_id(*)').eq('user_id', userId)
     ]);
 
     // Agrupar evidencias por tarea
