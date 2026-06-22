@@ -35,15 +35,8 @@
     objective_id uuid references public.objectives(id) on delete cascade not null,
     user_id uuid references auth.users(id) on delete cascade not null,
     name text not null, done boolean default false,
+    evidence_id uuid references public.evidence(id) on delete set null,
     created_at timestamptz default now()
-  );
-  create table public.task_evidence (
-    id uuid default gen_random_uuid() primary key,
-    task_id uuid references public.tasks(id) on delete cascade not null,
-    evidence_id uuid references public.evidence(id) on delete cascade not null,
-    user_id uuid references auth.users(id) on delete cascade not null,
-    created_at timestamptz default now(),
-    unique(task_id, evidence_id)
   );
   create table public.incidents (
     id uuid default gen_random_uuid() primary key,
@@ -68,13 +61,11 @@
   alter table public.tasks enable row level security;
   alter table public.incidents enable row level security;
   alter table public.evidence enable row level security;
-  alter table public.task_evidence enable row level security;
   create policy "own_profile" on public.profiles for all using (auth.uid() = id) with check (auth.uid() = id);
   create policy "own_objectives" on public.objectives for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
   create policy "own_tasks" on public.tasks for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
   create policy "own_incidents" on public.incidents for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
   create policy "own_evidence" on public.evidence for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
-  create policy "own_task_evidence" on public.task_evidence for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
   ╚══════════════════════════════════════════════════════════════╝
   -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -909,26 +900,11 @@ function ObjectivesScreen({ userId }) {
   const [saving, setSaving]         = useState(false);
 
   const load = useCallback(async () => {
-    const [objRes, evRes, teRes] = await Promise.all([
+    const [objRes, evRes] = await Promise.all([
       sb.from('objectives').select('*, tasks(*)').eq('user_id', userId).order('code'),
-      sb.from('evidence').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
-      sb.from('task_evidence').select('task_id, evidence:evidence_id(*)').eq('user_id', userId)
+      sb.from('evidence').select('*').eq('user_id', userId).order('created_at', { ascending: false })
     ]);
-
-    // Agrupar evidencias por tarea
-    const taskEvidenceMap = {};
-    (teRes.data || []).forEach(te => {
-      if (!taskEvidenceMap[te.task_id]) taskEvidenceMap[te.task_id] = [];
-      taskEvidenceMap[te.task_id].push(te.evidence);
-    });
-
-    // Agregar evidencias a cada tarea
-    const objsWithEv = (objRes.data || []).map(o => ({
-      ...o,
-      tasks: (o.tasks || []).map(t => ({ ...t, linkedEvidence: taskEvidenceMap[t.id] || [] }))
-    }));
-
-    setObjectives(objsWithEv);
+    setObjectives(objRes.data || []);
     setEvidence(evRes.data || []);
     setLoading(false);
   }, [userId]);
@@ -966,13 +942,8 @@ function ObjectivesScreen({ userId }) {
     load();
   };
 
-  const addTaskEvidence = async (taskId, evidenceId) => {
-    await sb.from('task_evidence').insert({ task_id: taskId, evidence_id: evidenceId, user_id: userId });
-    load();
-  };
-
-  const removeTaskEvidence = async (taskId, evidenceId) => {
-    await sb.from('task_evidence').delete().eq('task_id', taskId).eq('evidence_id', evidenceId);
+  const setTaskEvidence = async (taskId, evidenceId) => {
+    await sb.from('tasks').update({ evidence_id: evidenceId || null }).eq('id', taskId);
     load();
   };
 
@@ -1050,8 +1021,7 @@ function ObjectivesScreen({ userId }) {
                         <p style={{ fontSize: 13, color: 'var(--text-faint)' }}>Sin tareas aún. Agrega la primera.</p>
                       )}
                       {(o.tasks || []).sort((a, b) => a.done - b.done).map(t => {
-                        const linkedEvidenceIds = new Set((t.linkedEvidence || []).map(e => e.id));
-                        const unlinkedEvidence = evidence.filter(e => !linkedEvidenceIds.has(e.id));
+                        const linkedEvidence = evidence.find(e => e.id === t.evidence_id);
                         return (
                           <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1059,40 +1029,21 @@ function ObjectivesScreen({ userId }) {
                               <span style={{ flex: 1, fontSize: 13.5, color: 'var(--text-body)' }}>
                                 {t.name}
                               </span>
+                              {linkedEvidence && (
+                                <span style={{ fontSize: 11, color: 'var(--celeste-300)', background: 'rgba(86,194,240,.15)', padding: '3px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                                  {linkedEvidence.name}
+                                </span>
+                              )}
                               <button onClick={() => deleteTask(t.id)}
                                 style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 2, opacity: 0.5, flexShrink: 0 }}>
                                 {Ic('x', { width: 14, height: 14 })}
                               </button>
                             </div>
-                            {/* Evidencias vinculadas */}
-                            {(t.linkedEvidence || []).length > 0 && (
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                {(t.linkedEvidence || []).map(e => (
-                                  <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--celeste-300)', background: 'rgba(86,194,240,.15)', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-                                    <span>{e.name}</span>
-                                    <button onClick={() => removeTaskEvidence(t.id, e.id)}
-                                      style={{ background: 'none', border: 'none', color: 'var(--celeste-300)', cursor: 'pointer', padding: 0, opacity: 0.7, fontSize: '12px' }}>
-                                      ×
-                                    </button>
-                                  </div>
-                                ))}
-                                {unlinkedEvidence.length > 0 && (
-                                  <select onChange={(e) => { if (e.target.value) addTaskEvidence(t.id, e.target.value); e.target.value = ''; }}
-                                    style={{ fontSize: 11, padding: '4px 8px', background: 'rgba(79,132,242,.15)', border: '1px solid rgba(79,132,242,.3)', borderRadius: '4px', color: 'var(--azul-400)', cursor: 'pointer' }}>
-                                    <option value="">+ Agregar</option>
-                                    {unlinkedEvidence.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                                  </select>
-                                )}
-                              </div>
-                            )}
-                            {/* Si no hay evidencias, mostrar botón para agregar */}
-                            {(t.linkedEvidence || []).length === 0 && evidence.length > 0 && (
-                              <select onChange={(e) => { if (e.target.value) addTaskEvidence(t.id, e.target.value); e.target.value = ''; }}
-                                style={{ fontSize: 12, padding: '6px 10px', background: 'rgba(79,132,242,.15)', border: '1px solid rgba(79,132,242,.3)', borderRadius: '6px', color: 'var(--azul-400)', cursor: 'pointer' }}>
-                                <option value="">+ Vincular evidencia</option>
-                                {evidence.map(e => <option key={e.id} value={e.id}>{e.name} ({e.format})</option>)}
-                              </select>
-                            )}
+                            <select value={t.evidence_id || ''} onChange={(e) => setTaskEvidence(t.id, e.target.value)}
+                              style={{ fontSize: 12, padding: '6px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)', borderRadius: '6px', color: 'var(--text-body)' }}>
+                              <option value="">Sin vincular</option>
+                              {evidence.map(e => <option key={e.id} value={e.id}>{e.name} ({e.format})</option>)}
+                            </select>
                           </div>
                         );
                       })}
