@@ -454,13 +454,14 @@ function LoginScreen({ onLogin }) {
 // ════════════════════════════════════════════════════
 // ▸ SIDEBAR
 // ════════════════════════════════════════════════════
-function Sidebar({ current, onNavigate, user, openIncidents, onLogout, onChangeFramework, isMobile, isOpen, onClose }) {
+function Sidebar({ current, onNavigate, user, role, openIncidents, onLogout, onChangeFramework, isMobile, isOpen, onClose }) {
   const NAV = [
     { key: 'dashboard',  icon: 'layout-dashboard', label: 'Panel' },
     { key: 'objectives', icon: 'target',            label: 'Objetivos COMGES' },
     { key: 'incidents',  icon: 'shield-alert',      label: 'Incidentes',  badge: openIncidents || null },
     { key: 'evidence',   icon: 'file-check-2',      label: 'Evidencias' },
     { key: 'org',        icon: 'building-2',         label: 'Organismo' },
+    ...(role === 'admin' ? [{ key: 'users', icon: 'users', label: 'Usuarios' }] : []),
   ];
   const initials = user?.email?.[0]?.toUpperCase() || 'U';
 
@@ -1825,6 +1826,247 @@ function NoOrgScreen({ email, onLogout }) {
 }
 
 // ════════════════════════════════════════════════════
+// ▸ REGISTRO POR INVITACIÓN (token en la URL)
+// ════════════════════════════════════════════════════
+function RegistroScreen({ token }) {
+  const [state, setState]   = useState('loading'); // loading | invalid | form | done
+  const [invite, setInvite] = useState(null);      // { email, role, org_name, valid }
+  const [pwd, setPwd]       = useState('');
+  const [pwd2, setPwd2]     = useState('');
+  const [error, setError]   = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    sb.rpc('validate_invite', { p_token: token }).then(({ data, error }) => {
+      const inv = Array.isArray(data) ? data[0] : data;
+      if (error || !inv || !inv.valid) setState('invalid');
+      else { setInvite(inv); setState('form'); }
+    });
+  }, [token]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault(); setError('');
+    if (pwd.length < 8)  { setError('La contraseña debe tener al menos 8 caracteres.'); return; }
+    if (pwd !== pwd2)    { setError('Las contraseñas no coinciden.'); return; }
+    setSaving(true);
+    const { error: err } = await sb.auth.signUp({
+      email: invite.email, password: pwd,
+      options: { data: { invite_token: token }, emailRedirectTo: window.location.origin },
+    });
+    setSaving(false);
+    if (err) { setError(err.message); return; }
+    setState('done');
+  };
+
+  const goLogin = () => { window.location.href = window.location.origin; };
+
+  return (
+    <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: 20 }}>
+      <div className="anim-fade" style={{ ...CARD, width: 440, padding: 40 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+          <CsShieldLogo size={56} gradId="reg-shield" />
+          <h1 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: 22, color: 'var(--text-strong)', textAlign: 'center' }}>
+            Crear cuenta
+          </h1>
+        </div>
+
+        {state === 'loading' && <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Validando invitación…</p>}
+
+        {state === 'invalid' && (
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ color: 'var(--text-body)', fontSize: 14, marginBottom: 18 }}>
+              Esta invitación no es válida, ya fue utilizada o expiró. Pídele a un administrador que te envíe una nueva.
+            </p>
+            <Btn variant="ghost" onClick={goLogin}>Ir al inicio de sesión</Btn>
+          </div>
+        )}
+
+        {state === 'form' && invite && (
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 2 }}>
+              Te invitaron a <strong style={{ color: 'var(--text-strong)' }}>{invite.org_name}</strong> como <strong style={{ color: 'var(--celeste-300)' }}>{invite.role === 'admin' ? 'administrador' : 'miembro'}</strong>.
+            </p>
+            <Field label="Correo electrónico">
+              <input type="email" value={invite.email} readOnly style={{ opacity: 0.7, cursor: 'not-allowed' }} />
+            </Field>
+            <Field label="Contraseña (mínimo 8 caracteres)">
+              <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} placeholder="••••••••" autoFocus />
+            </Field>
+            <Field label="Repetir contraseña">
+              <input type="password" value={pwd2} onChange={e => setPwd2(e.target.value)} placeholder="••••••••" />
+            </Field>
+            {error && <p style={{ color: 'var(--danger-300)', fontSize: 12.5 }}>{error}</p>}
+            <Btn type="submit" disabled={saving}>{saving ? 'Creando…' : 'Crear cuenta'}</Btn>
+          </form>
+        )}
+
+        {state === 'done' && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ color: 'var(--success-300)', marginBottom: 12 }}>{Ic('mail-check', { width: 40, height: 40 })}</div>
+            <p style={{ color: 'var(--text-body)', fontSize: 14, marginBottom: 18 }}>
+              ¡Cuenta creada! Te enviamos un correo de confirmación a <strong>{invite.email}</strong>. Ábrelo y confirma tu cuenta para poder ingresar.
+            </p>
+            <Btn variant="ghost" onClick={goLogin}>Ir al inicio de sesión</Btn>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════
+// ▸ USUARIOS Y ACCESOS (solo admin)
+// ════════════════════════════════════════════════════
+function UsersScreen({ userId, orgId, role }) {
+  const isAdmin = role === 'admin';
+  const [members, setMembers] = useState([]);
+  const [invites, setInvites] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail]     = useState('');
+  const [invRole, setInvRole] = useState('member');
+  const [genLink, setGenLink] = useState(null);
+  const [copied, setCopied]   = useState(false);
+  const [busy, setBusy]       = useState(false);
+  const [error, setError]     = useState('');
+
+  const load = useCallback(async () => {
+    const [{ data: mem }, { data: inv }] = await Promise.all([
+      sb.rpc('list_org_members'),
+      sb.from('invites').select('*').eq('used', false).order('created_at', { ascending: false }),
+    ]);
+    setMembers(mem || []);
+    setInvites((inv || []).filter(i => new Date(i.expires_at) > new Date()));
+    setLoading(false);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  if (!isAdmin) return <div style={CARD}><EmptyState icon="lock" msg="Solo los administradores pueden gestionar usuarios." /></div>;
+  if (loading) return <Spinner />;
+
+  const createInvite = async (e) => {
+    e.preventDefault(); setError(''); setGenLink(null); setCopied(false);
+    const mail = email.trim().toLowerCase();
+    if (!mail) { setError('Ingresa un correo electrónico.'); return; }
+    setBusy(true);
+    const token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    const { error: err } = await sb.from('invites').insert({ org_id: orgId, email: mail, role: invRole, token, created_by: userId });
+    setBusy(false);
+    if (err) { setError(err.message); return; }
+    setGenLink(`${window.location.origin}/?token=${token}`);
+    setEmail('');
+    load();
+  };
+
+  const changeRole = async (uid, newRole) => {
+    await sb.from('memberships').update({ role: newRole }).eq('user_id', uid).eq('org_id', orgId);
+    load();
+  };
+  const removeMember = async (uid) => {
+    if (uid === userId) { alert('No puedes quitar tu propio acceso.'); return; }
+    if (!confirm('¿Quitar el acceso de este usuario a la organización?')) return;
+    await sb.from('memberships').delete().eq('user_id', uid).eq('org_id', orgId);
+    load();
+  };
+  const cancelInvite = async (id) => {
+    if (!confirm('¿Cancelar esta invitación?')) return;
+    await sb.from('invites').delete().eq('id', id);
+    load();
+  };
+  const copyLink = () => { try { navigator.clipboard.writeText(genLink); setCopied(true); } catch (e) {} };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 820 }}>
+      {/* Invitar */}
+      <div style={CARD}>
+        <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 16, color: 'var(--text-strong)', marginBottom: 16 }}>
+          Invitar usuario
+        </h3>
+        <form onSubmit={createInvite} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ flex: '1 1 240px' }}>
+            <Field label="Correo electrónico">
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="persona@inc.cl" />
+            </Field>
+          </div>
+          <div style={{ flex: '0 0 150px' }}>
+            <Field label="Rol">
+              <select value={invRole} onChange={e => setInvRole(e.target.value)}>
+                <option value="member">Miembro (solo lectura)</option>
+                <option value="admin">Administrador</option>
+              </select>
+            </Field>
+          </div>
+          <Btn type="submit" disabled={busy}>{busy ? 'Generando…' : <>{Ic('user-plus', { width: 15, height: 15 })} Generar link</>}</Btn>
+        </form>
+        {error && <p style={{ color: 'var(--danger-300)', fontSize: 12.5, marginTop: 10 }}>{error}</p>}
+        {genLink && (
+          <div style={{ marginTop: 16, padding: 14, background: 'rgba(86,194,240,.1)', border: '1px solid rgba(86,194,240,.3)', borderRadius: 8 }}>
+            <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 8 }}>
+              Comparte este link con la persona (válido 7 días). Al registrarse recibirá un correo de confirmación.
+            </p>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input readOnly value={genLink} onFocus={e => e.target.select()}
+                style={{ flex: 1, minWidth: 220, fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }} />
+              <Btn size="sm" variant={copied ? 'success' : 'primary'} onClick={copyLink}>
+                {copied ? <>{Ic('check', { width: 14, height: 14 })} Copiado</> : <>{Ic('copy', { width: 14, height: 14 })} Copiar</>}
+              </Btn>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Equipo */}
+      <div style={CARD}>
+        <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 16, color: 'var(--text-strong)', marginBottom: 16 }}>
+          Equipo ({members.length})
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {members.map(m => (
+            <div key={m.user_id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
+              <span style={{ flex: '1 1 200px', fontSize: 13.5, color: 'var(--text-body)', wordBreak: 'break-all' }}>
+                {m.email}{m.user_id === userId && <span style={{ color: 'var(--text-faint)' }}> (tú)</span>}
+              </span>
+              <select value={m.role} disabled={m.user_id === userId} onChange={e => changeRole(m.user_id, e.target.value)}
+                style={{ fontSize: 12, padding: '4px 8px', cursor: m.user_id === userId ? 'not-allowed' : 'pointer' }}>
+                <option value="member">Miembro</option>
+                <option value="admin">Administrador</option>
+              </select>
+              {m.user_id !== userId && (
+                <button title="Quitar acceso" onClick={() => removeMember(m.user_id)}
+                  style={{ background: 'none', border: 'none', color: 'var(--danger-500)', cursor: 'pointer', padding: 5 }}>
+                  {Ic('user-minus', { width: 16, height: 16 })}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Invitaciones pendientes */}
+      {invites.length > 0 && (
+        <div style={CARD}>
+          <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 16, color: 'var(--text-strong)', marginBottom: 16 }}>
+            Invitaciones pendientes ({invites.length})
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {invites.map(i => (
+              <div key={i.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
+                <span style={{ flex: '1 1 200px', fontSize: 13, color: 'var(--text-body)', wordBreak: 'break-all' }}>{i.email}</span>
+                <Badge tone="warn">{i.role === 'admin' ? 'Admin' : 'Miembro'}</Badge>
+                <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Expira {fmtDate(i.expires_at)}</span>
+                <button title="Cancelar invitación" onClick={() => cancelInvite(i.id)}
+                  style={{ background: 'none', border: 'none', color: 'var(--danger-500)', cursor: 'pointer', padding: 5 }}>
+                  {Ic('trash-2', { width: 15, height: 15 })}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════
 // ▸ APP ROOT
 // ════════════════════════════════════════════════════
 function App() {
@@ -1838,6 +2080,9 @@ function App() {
   const [highlightEvidence, setHighlightEvidence] = useState(null); // id de evidencia a resaltar al navegar
   const [membership, setMembership] = useState(null);  // { org_id, role } de la organización del usuario
   const [memLoading, setMemLoading] = useState(true);  // cargando membresía
+  const [inviteToken] = useState(() => {               // token de invitación en la URL (?token=)
+    try { return new URLSearchParams(window.location.search).get('token'); } catch (e) { return null; }
+  });
 
   // Detectar viewport
   useEffect(() => {
@@ -1857,12 +2102,23 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Cargar la membresía (organización + rol) del usuario
+  // Cargar la membresía (organización + rol) del usuario; canjear invitación si corresponde
   useEffect(() => {
     if (!user) { setMembership(null); setMemLoading(false); return; }
     setMemLoading(true);
-    sb.from('memberships').select('org_id, role').eq('user_id', user.id).limit(1).maybeSingle()
-      .then(({ data }) => { setMembership(data || null); setMemLoading(false); });
+    (async () => {
+      let { data } = await sb.from('memberships').select('org_id, role').eq('user_id', user.id).limit(1).maybeSingle();
+      // Si no tiene organización pero se registró con un token de invitación, canjearlo
+      if (!data && user.user_metadata?.invite_token) {
+        const { error } = await sb.rpc('redeem_invite', { p_token: user.user_metadata.invite_token });
+        if (!error) {
+          const r = await sb.from('memberships').select('org_id, role').eq('user_id', user.id).limit(1).maybeSingle();
+          data = r.data;
+        }
+      }
+      setMembership(data || null);
+      setMemLoading(false);
+    })();
   }, [user]);
 
   // Keep sidebar incident badge in sync (solo COMGES)
@@ -1880,6 +2136,7 @@ function App() {
 
   if (loading) return <Spinner full />;
   if (NOT_CONFIGURED) return <SetupScreen />;
+  if (inviteToken && !user) return <RegistroScreen token={inviteToken} />;
   if (!user) return <LoginScreen onLogin={setUser} />;
 
   // Pantalla de selección de marco
@@ -1929,6 +2186,7 @@ function App() {
     incidents:  { title: 'Incidentes de seguridad',     comp: IncidentsScreen },
     evidence:   { title: 'Evidencias de cumplimiento',  comp: EvidenceScreen },
     org:        { title: 'Configuración del organismo', comp: OrgScreen },
+    users:      { title: 'Usuarios y accesos',          comp: UsersScreen },
   };
   const { title, comp: Screen } = SCREENS[current] || SCREENS.dashboard;
 
@@ -1938,6 +2196,7 @@ function App() {
         current={current}
         onNavigate={navigate}
         user={user}
+        role={membership.role}
         openIncidents={openInc}
         onLogout={() => sb.auth.signOut()}
         onChangeFramework={() => { setFramework(null); setDrawerOpen(false); }}
