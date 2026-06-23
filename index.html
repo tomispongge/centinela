@@ -897,7 +897,8 @@ function DashboardScreen({ orgId }) {
 // ════════════════════════════════════════════════════
 // ▸ OBJECTIVES SCREEN
 // ════════════════════════════════════════════════════
-function ObjectivesScreen({ userId, orgId, onNavigate, onHighlightEvidence }) {
+function ObjectivesScreen({ userId, orgId, role, onNavigate, onHighlightEvidence }) {
+  const isAdmin = role === 'admin';
   const [objectives, setObjectives] = useState([]);
   const [evidence, setEvidence]     = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -978,9 +979,11 @@ function ObjectivesScreen({ userId, orgId, onNavigate, onHighlightEvidence }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 2 }}>
-        <Btn onClick={() => setModal('new')}>{Ic('plus')} Nuevo objetivo</Btn>
-      </div>
+      {isAdmin && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 2 }}>
+          <Btn onClick={() => setModal('new')}>{Ic('plus')} Nuevo objetivo</Btn>
+        </div>
+      )}
 
       {objectives.length === 0
         ? <div style={CARD}><EmptyState icon="target" msg="Sin objetivos COMGES. Crea el primero." /></div>
@@ -1029,14 +1032,14 @@ function ObjectivesScreen({ userId, orgId, onNavigate, onHighlightEvidence }) {
                       style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 6 }}>
                       {Ic(isOpen ? 'chevron-up' : 'chevron-down')}
                     </button>
-                    <button onClick={() => setModal(o)} title="Editar"
+                    {isAdmin && <button onClick={() => setModal(o)} title="Editar"
                       style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 6 }}>
                       {Ic('pencil', { width: 15, height: 15 })}
-                    </button>
-                    <button onClick={() => deleteObj(o.id)} title="Eliminar"
+                    </button>}
+                    {isAdmin && <button onClick={() => deleteObj(o.id)} title="Eliminar"
                       style={{ background: 'none', border: 'none', color: 'var(--danger-500)', cursor: 'pointer', padding: 6 }}>
                       {Ic('trash-2', { width: 15, height: 15 })}
-                    </button>
+                    </button>}
                   </div>
                 </div>
 
@@ -1060,31 +1063,33 @@ function ObjectivesScreen({ userId, orgId, onNavigate, onHighlightEvidence }) {
                               style={{ fontSize: 11, color: 'var(--celeste-300)', background: 'rgba(86,194,240,.15)', padding: '4px 8px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>
                               {Ic('link', { width: 11, height: 11 })} {ev.name}
                             </span>
-                            {slot === 1 && !ev2 && (
+                            {isAdmin && slot === 1 && !ev2 && (
                               <button title="Agregar 2ª evidencia" onClick={() => setAddEvidTaskId(addEvidTaskId === t.id ? null : t.id)}
                                 style={{ width: 22, height: 22, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, background: 'rgba(79,132,242,.15)', border: '1px solid rgba(79,132,242,.3)', borderRadius: '4px', color: 'var(--azul-400)', cursor: 'pointer' }}>+</button>
                             )}
-                            <button title="Desvincular evidencia" onClick={() => unlinkEvidence(t, slot)}
-                              style={{ width: 22, height: 22, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, background: 'none', border: '1px solid var(--border-subtle)', borderRadius: '4px', color: 'var(--text-faint)', cursor: 'pointer' }}>×</button>
+                            {isAdmin && <button title="Desvincular evidencia" onClick={() => unlinkEvidence(t, slot)}
+                              style={{ width: 22, height: 22, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, background: 'none', border: '1px solid var(--border-subtle)', borderRadius: '4px', color: 'var(--text-faint)', cursor: 'pointer' }}>×</button>}
                           </div>
                         );
                         return <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <input type="checkbox" checked={t.done} onChange={() => toggleTask(t.id, t.done)} style={{ width: 17, height: 17, flexShrink: 0 }} />
+                            <input type="checkbox" checked={t.done} disabled={!isAdmin} onChange={() => toggleTask(t.id, t.done)} style={{ width: 17, height: 17, flexShrink: 0, cursor: isAdmin ? 'pointer' : 'default' }} />
                             <span style={{ flex: 1, fontSize: 13.5, color: 'var(--text-body)' }}>{t.name}</span>
-                            <button onClick={() => deleteTask(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 2, opacity: 0.5, flexShrink: 0 }}>{Ic('x', { width: 14, height: 14 })}</button>
+                            {isAdmin && <button onClick={() => deleteTask(t.id)} style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 2, opacity: 0.5, flexShrink: 0 }}>{Ic('x', { width: 14, height: 14 })}</button>}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
                             {/* Evidencia 1: desplegable si no hay nada, o vínculo con +/× */}
                             {!ev1
-                              ? <select value="" onChange={(e) => { if (e.target.value) saveTaskEvidence(t.id, { evidence_id: e.target.value }); }} style={SELECT_STYLE}>
-                                  <option value="">{availEv.length ? 'Selecciona evidencia' : 'No hay evidencias disponibles'}</option>
-                                  {availEv.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                                </select>
+                              ? (isAdmin
+                                  ? <select value="" onChange={(e) => { if (e.target.value) saveTaskEvidence(t.id, { evidence_id: e.target.value }); }} style={SELECT_STYLE}>
+                                      <option value="">{availEv.length ? 'Selecciona evidencia' : 'No hay evidencias disponibles'}</option>
+                                      {availEv.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                    </select>
+                                  : <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Sin evidencia vinculada</span>)
                               : <EvChip ev={ev1} slot={1} />
                             }
                             {/* 2º desplegable: aparece DEBAJO de la evidencia ya vinculada al presionar "+" */}
-                            {ev1 && !ev2 && addEvidTaskId === t.id && (
+                            {isAdmin && ev1 && !ev2 && addEvidTaskId === t.id && (
                               <select value="" onChange={(e) => { if (e.target.value) { saveTaskEvidence(t.id, { evidence_id_2: e.target.value }); setAddEvidTaskId(null); } }} style={SELECT_STYLE}>
                                 <option value="">{availEv.length ? 'Selecciona 2ª evidencia' : 'No hay evidencias disponibles'}</option>
                                 {availEv.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
@@ -1097,12 +1102,12 @@ function ObjectivesScreen({ userId, orgId, onNavigate, onHighlightEvidence }) {
                       })}
                     </div>
 
-                    {addTaskId === o.id
+                    {isAdmin && (addTaskId === o.id
                       ? <InlineAddTask onAdd={name => addTask(o.id, name)} onCancel={() => setAddTaskId(null)} />
                       : <Btn size="sm" variant="ghost" onClick={() => setAddTaskId(o.id)}>
                           {Ic('plus', { width: 14, height: 14 })} Agregar tarea
                         </Btn>
-                    }
+                    )}
                   </div>
                 )}
               </div>
@@ -1164,7 +1169,8 @@ function ObjModal({ initial, onClose, onSave, saving }) {
 // ════════════════════════════════════════════════════
 // ▸ INCIDENTS SCREEN
 // ════════════════════════════════════════════════════
-function IncidentsScreen({ userId, orgId }) {
+function IncidentsScreen({ userId, orgId, role }) {
+  const isAdmin = role === 'admin';
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [modal, setModal]         = useState(null);
@@ -1218,9 +1224,11 @@ function IncidentsScreen({ userId, orgId }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Btn onClick={() => setModal('new')}>{Ic('plus')} Nuevo incidente</Btn>
-      </div>
+      {isAdmin && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Btn onClick={() => setModal('new')}>{Ic('plus')} Nuevo incidente</Btn>
+        </div>
+      )}
 
       <div style={{ ...CARD, padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1245,8 +1253,8 @@ function IncidentsScreen({ userId, orgId }) {
                   </div>
                 </div>
                 <Badge tone={i.severity}>{i.sev_label}</Badge>
-                <select value={i.status} onChange={e => changeStatus(i.id, e.target.value)}
-                  style={{ padding: '5px 10px', fontSize: 12, borderRadius: 'var(--radius-pill)', cursor: 'pointer' }}>
+                <select value={i.status} disabled={!isAdmin} onChange={e => changeStatus(i.id, e.target.value)}
+                  style={{ padding: '5px 10px', fontSize: 12, borderRadius: 'var(--radius-pill)', cursor: isAdmin ? 'pointer' : 'default' }}>
                   {['En detección','En análisis','En contención','Asignado','En remediación','Resuelto'].map(s => <option key={s}>{s}</option>)}
                 </select>
                 <div style={{ display: 'flex', gap: 4 }}>
@@ -1254,14 +1262,14 @@ function IncidentsScreen({ userId, orgId }) {
                     style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 5 }}>
                     {Ic('eye', { width: 15, height: 15 })}
                   </button>
-                  <button onClick={() => setModal(i)} title="Editar"
+                  {isAdmin && <button onClick={() => setModal(i)} title="Editar"
                     style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 5 }}>
                     {Ic('pencil', { width: 15, height: 15 })}
-                  </button>
-                  <button onClick={() => del(i.id)} title="Eliminar"
+                  </button>}
+                  {isAdmin && <button onClick={() => del(i.id)} title="Eliminar"
                     style={{ background: 'none', border: 'none', color: 'var(--danger-500)', cursor: 'pointer', padding: 5 }}>
                     {Ic('trash-2', { width: 15, height: 15 })}
-                  </button>
+                  </button>}
                 </div>
               </div>
             ))
@@ -1367,7 +1375,8 @@ function IncDetail({ incident: i, onClose }) {
 // ════════════════════════════════════════════════════
 // ▸ EVIDENCE SCREEN
 // ════════════════════════════════════════════════════
-function EvidenceScreen({ userId, orgId, highlightEvidence, onHighlightEvidence }) {
+function EvidenceScreen({ userId, orgId, role, highlightEvidence, onHighlightEvidence }) {
+  const isAdmin = role === 'admin';
   const [objectives, setObjectives] = useState([]);
   const [evidence, setEvidence]     = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -1419,11 +1428,13 @@ function EvidenceScreen({ userId, orgId, highlightEvidence, onHighlightEvidence 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 2 }}>
-        <Btn onClick={() => setModal('new')} disabled={objectives.length === 0}>
-          {Ic('plus')} Agregar evidencia
-        </Btn>
-      </div>
+      {isAdmin && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 2 }}>
+          <Btn onClick={() => setModal('new')} disabled={objectives.length === 0}>
+            {Ic('plus')} Agregar evidencia
+          </Btn>
+        </div>
+      )}
       {objectives.length === 0
         ? <div style={CARD}><EmptyState icon="file-check-2" msg="Primero crea objetivos COMGES para asignar evidencias." /></div>
         : objectives.map(obj => {
@@ -1476,24 +1487,24 @@ function EvidenceScreen({ userId, orgId, highlightEvidence, onHighlightEvidence 
                                     {Ic('external-link', { width: 14, height: 14 })}
                                   </a>
                                 )}
-                                <button onClick={() => setModal(doc)}
+                                {isAdmin && <button onClick={() => setModal(doc)}
                                   style={{ background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', padding: 4 }}>
                                   {Ic('pencil', { width: 14, height: 14 })}
-                                </button>
-                                <button onClick={() => del(doc.id)}
+                                </button>}
+                                {isAdmin && <button onClick={() => del(doc.id)}
                                   style={{ background: 'none', border: 'none', color: 'var(--danger-500)', cursor: 'pointer', padding: 4 }}>
                                   {Ic('trash-2', { width: 14, height: 14 })}
-                                </button>
+                                </button>}
                               </div>
                             </div>
                           );
                         })
                     }
-                    <div style={{ marginTop: 12 }}>
+                    {isAdmin && <div style={{ marginTop: 12 }}>
                       <Btn size="sm" variant="ghost" onClick={() => setModal({ objective_code: obj.code })}>
                         {Ic('plus', { width: 14, height: 14 })} Agregar documento aquí
                       </Btn>
-                    </div>
+                    </div>}
                   </div>
                 )}
               </div>
@@ -1561,7 +1572,8 @@ function EvModal({ initial, objectives, onClose, onSave }) {
 // ════════════════════════════════════════════════════
 // ▸ ORG SCREEN
 // ════════════════════════════════════════════════════
-function OrgScreen({ userId }) {
+function OrgScreen({ userId, role }) {
+  const isAdmin = role === 'admin';
   const [f, setF] = useState({
     org_name: '', org_region: '', org_ciudad: '', org_tipo_oiv: '',
     org_nivel_complejidad: '', org_usuarios_activos: '', org_equipo_seguridad: '',
@@ -1595,8 +1607,17 @@ function OrgScreen({ userId }) {
 
   if (loading) return <Spinner />;
 
-  // Modo de solo lectura (cuando no está editando)
-  if (!isEditing && f.org_name) {
+  // Miembros (solo lectura) sin configuración cargada: aviso amable, nunca el formulario
+  if (!isAdmin && !f.org_name) {
+    return (
+      <div style={CARD}>
+        <EmptyState icon="building-2" msg="La configuración del organismo aún no ha sido completada por un administrador." />
+      </div>
+    );
+  }
+
+  // Modo de solo lectura: para miembros siempre, y para admin cuando no está editando
+  if (!isAdmin || (!isEditing && f.org_name)) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 1000 }}>
         <div className="org-header" style={{ ...CARD, display: 'flex', gap: 24, alignItems: 'center' }}>
@@ -1613,7 +1634,7 @@ function OrgScreen({ userId }) {
               {f.org_tipo_oiv} · {f.org_ciudad}
             </p>
           </div>
-          <Btn onClick={() => setIsEditing(true)}>{Ic('pencil', { width: 15, height: 15 })} Editar</Btn>
+          {isAdmin && <Btn onClick={() => setIsEditing(true)}>{Ic('pencil', { width: 15, height: 15 })} Editar</Btn>}
         </div>
 
         <div style={CARD}>
