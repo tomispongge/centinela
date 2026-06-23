@@ -1944,17 +1944,24 @@ function UsersScreen({ userId, orgId, role }) {
   if (loading) return <Spinner />;
 
   const createInvite = async (e) => {
-    e.preventDefault(); setError(''); setGenLink(null); setCopied(false);
+    if (e && e.preventDefault) e.preventDefault();
+    setError(''); setGenLink(null); setCopied(false);
     const mail = email.trim().toLowerCase();
     if (!mail) { setError('Ingresa un correo electrónico.'); return; }
     setBusy(true);
-    const token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
-    const { error: err } = await sb.from('invites').insert({ org_id: orgId, email: mail, role: invRole, token, created_by: userId });
-    setBusy(false);
-    if (err) { setError(err.message); return; }
-    setGenLink(`${window.location.origin}/?token=${token}`);
-    setEmail('');
-    load();
+    try {
+      const token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+      const { error: err } = await sb.from('invites').insert({ org_id: orgId, email: mail, role: invRole, token, created_by: userId });
+      if (err) { setError(err.message || 'No se pudo crear la invitación.'); return; }
+      setGenLink(`${window.location.origin}/?token=${token}`);
+      setEmail('');
+      await load();
+    } catch (ex) {
+      console.error('Error creando invitación:', ex);
+      setError('Ocurrió un error al crear la invitación. Revisa la consola.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const changeRole = async (uid, newRole) => {
@@ -1981,10 +1988,11 @@ function UsersScreen({ userId, orgId, role }) {
         <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 16, color: 'var(--text-strong)', marginBottom: 16 }}>
           Invitar usuario
         </h3>
-        <form onSubmit={createInvite} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ flex: '1 1 240px' }}>
             <Field label="Correo electrónico">
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="persona@inc.cl" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') createInvite(e); }} placeholder="persona@inc.cl" />
             </Field>
           </div>
           <div style={{ flex: '0 0 150px' }}>
@@ -1995,8 +2003,8 @@ function UsersScreen({ userId, orgId, role }) {
               </select>
             </Field>
           </div>
-          <Btn type="submit" disabled={busy}>{busy ? 'Generando…' : <>{Ic('user-plus', { width: 15, height: 15 })} Generar link</>}</Btn>
-        </form>
+          <Btn onClick={createInvite} disabled={busy}>{busy ? 'Generando…' : <>{Ic('user-plus', { width: 15, height: 15 })} Generar link</>}</Btn>
+        </div>
         {error && <p style={{ color: 'var(--danger-300)', fontSize: 12.5, marginTop: 10 }}>{error}</p>}
         {genLink && (
           <div style={{ marginTop: 16, padding: 14, background: 'rgba(86,194,240,.1)', border: '1px solid rgba(86,194,240,.3)', borderRadius: 8 }}>
@@ -2107,17 +2115,25 @@ function App() {
     if (!user) { setMembership(null); setMemLoading(false); return; }
     setMemLoading(true);
     (async () => {
-      let { data } = await sb.from('memberships').select('org_id, role').eq('user_id', user.id).limit(1).maybeSingle();
-      // Si no tiene organización pero se registró con un token de invitación, canjearlo
-      if (!data && user.user_metadata?.invite_token) {
-        const { error } = await sb.rpc('redeem_invite', { p_token: user.user_metadata.invite_token });
-        if (!error) {
-          const r = await sb.from('memberships').select('org_id, role').eq('user_id', user.id).limit(1).maybeSingle();
-          data = r.data;
+      let result = null;
+      try {
+        let { data } = await sb.from('memberships').select('org_id, role').eq('user_id', user.id).limit(1).maybeSingle();
+        // Si no tiene organización pero se registró con un token de invitación, canjearlo
+        if (!data && user.user_metadata?.invite_token) {
+          const { error } = await sb.rpc('redeem_invite', { p_token: user.user_metadata.invite_token });
+          if (error) console.error('Error canjeando invitación:', error.message);
+          else {
+            const r = await sb.from('memberships').select('org_id, role').eq('user_id', user.id).limit(1).maybeSingle();
+            data = r.data;
+          }
         }
+        result = data || null;
+      } catch (e) {
+        console.error('Error cargando membresía:', e);
+      } finally {
+        setMembership(result);   // garantiza que la carga termina (evita quedar en pantalla azul)
+        setMemLoading(false);
       }
-      setMembership(data || null);
-      setMemLoading(false);
     })();
   }, [user]);
 
