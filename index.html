@@ -225,8 +225,15 @@ setInterval(() => window.lucide?.createIcons(), 250);
 // ════════════════════════════════════════════════════
 // ▸ UTILS
 // ════════════════════════════════════════════════════
+// El <i> lo reemplaza lucide por un <svg> en el DOM real. Lo envolvemos en un
+// <span> que React sí controla, así React nunca intenta quitar/mover el nodo que
+// lucide mutó (evita el crash "removeChild ... not a child of this node").
 const Ic = (name, style = {}) =>
-  <i data-lucide={name} style={{ width: 18, height: 18, ...style }}></i>;
+  <span key={name} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 0,
+    verticalAlign: 'middle', flexShrink: 0,
+    width: style.width != null ? style.width : 18, height: style.height != null ? style.height : 18 }}>
+    <i data-lucide={name} style={{ width: 18, height: 18, ...style }}></i>
+  </span>;
 
 const CARD = {
   background: 'var(--surface-card)', border: '1px solid var(--border-subtle)',
