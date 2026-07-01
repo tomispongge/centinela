@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { generateReport } from '../services/reports';
+import remarkGfm from 'remark-gfm';
+import { generateReport, getCachedReport, setCachedReport } from '../services/reports';
 import { CARD } from '../lib/constants';
 import Icon from '../components/common/Icon';
 import Button from '../components/common/Button';
@@ -41,7 +42,7 @@ function downloadBlob(blob, filename) {
 // ════════════════════════════════════════════════════
 export default function ReportsScreen() {
   const [loading, setLoading] = useState(false);
-  const [report, setReport]   = useState(null);
+  const [report, setReport]   = useState(() => getCachedReport()); // restaura el informe al volver
   const [error, setError]     = useState('');
   const [shown, setShown]     = useState(false);
   const reportRef = useRef(null);
@@ -51,6 +52,7 @@ export default function ReportsScreen() {
     try {
       const { report } = await generateReport();
       setReport(report);
+      setCachedReport(report); // persiste hasta cerrar sesión
     } catch (e) {
       setError(e.message || 'No se pudo generar el informe.');
     } finally {
@@ -75,7 +77,9 @@ export default function ReportsScreen() {
   };
 
   const exportDOCX = () => {
-    const html = reportRef.current?.innerHTML || '';
+    // Word respeta el atributo border= mejor que el CSS, así la tabla sale con líneas.
+    const html = (reportRef.current?.innerHTML || '')
+      .replace(/<table/g, '<table border="1" cellspacing="0" cellpadding="6"');
     const doc =
       `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>` +
       `<head><meta charset="utf-8"><title>Informe COMGES</title><style>${DOC_STYLES}</style></head>` +
@@ -142,7 +146,7 @@ export default function ReportsScreen() {
             className="report-md"
             style={{ display: shown ? 'block' : 'none', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}
           >
-            <ReactMarkdown>{report}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{report}</ReactMarkdown>
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@ import { sb, NOT_CONFIGURED } from './lib/supabase';
 import { useAuth } from './hooks/useAuth';
 import { useMembership } from './hooks/useMembership';
 import { useAutoLogout } from './hooks/useAutoLogout';
+import { clearCachedReport } from './services/reports';
 import Sidebar from './components/layout/Sidebar';
 import Topbar from './components/layout/Topbar';
 import Spinner from './components/common/Spinner';
@@ -43,6 +44,9 @@ export default function App() {
   // ⚠️ TEMPORAL: 60 s para probar en el preview. QUITAR el 3er argumento
   //    (vuelve al default de 1 h) ANTES de mergear a main.
   useAutoLogout(!!user, signOut, 60 * 1000);
+
+  // Al cerrar sesión (auto o manual), descarta el informe cacheado en memoria.
+  useEffect(() => { if (!user) clearCachedReport(); }, [user]);
 
   const [framework, setFramework]   = useState(null); // null | 'comges' | 'iso'
   const [current, setCurrent]       = useState('dashboard');

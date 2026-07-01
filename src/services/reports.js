@@ -18,3 +18,11 @@ export async function generateReport() {
   if (!resp.ok) throw new Error(data.error || `Error ${resp.status} al generar el informe.`);
   return data; // { report, generated_at }
 }
+
+// ── Caché en memoria del último informe ──────────────
+// Sobrevive la navegación entre pantallas (evita regenerar y gastar tokens de
+// Gemini). Se limpia al cerrar sesión (ver App.jsx). No se persiste a disco.
+let cachedReport = null;
+export const getCachedReport = () => cachedReport;
+export const setCachedReport = (r) => { cachedReport = r; };
+export const clearCachedReport = () => { cachedReport = null; };
