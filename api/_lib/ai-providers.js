@@ -32,7 +32,15 @@ async function callGemini(prompt) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 8192,
+        // gemini-2.5-flash "piensa" y ese razonamiento consume tokens de salida,
+        // lo que cortaba el informe. Para un informe no hace falta: lo desactivamos
+        // (informe completo, más rápido y más barato). Si el modelo no soporta
+        // thinking, este campo se ignora sin error.
+        thinkingConfig: { thinkingBudget: 0 },
+      },
     }),
   });
 
