@@ -15,6 +15,7 @@ export default function Sidebar({
     { key: 'objectives', icon: 'target',           label: 'Objetivos COMGES' },
     { key: 'incidents',  icon: 'shield-alert',      label: 'Incidentes',  badge: openIncidents || null },
     { key: 'evidence',   icon: 'file-check-2',      label: 'Evidencias' },
+    { key: 'reports',    icon: 'file-text',         label: 'Informes' },
     { key: 'org',        icon: 'building-2',         label: 'Organismo' },
     ...(role === 'admin' ? [{ key: 'users', icon: 'users', label: 'Usuarios' }] : []),
   ];

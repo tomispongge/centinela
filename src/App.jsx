@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { sb, NOT_CONFIGURED } from './lib/supabase';
 import { useAuth } from './hooks/useAuth';
 import { useMembership } from './hooks/useMembership';
@@ -17,6 +17,8 @@ import IncidentsScreen from './screens/IncidentsScreen';
 import EvidenceScreen from './screens/EvidenceScreen';
 import OrgScreen from './screens/OrgScreen';
 import UsersScreen from './screens/UsersScreen';
+// Carga diferida: react-markdown solo se descarga al abrir Informes.
+const ReportsScreen = lazy(() => import('./screens/ReportsScreen'));
 
 // ════════════════════════════════════════════════════
 // App — shell y máquina de estados. Portado del App original.
@@ -27,6 +29,7 @@ const SCREENS = {
   objectives: { title: 'Objetivos COMGES',            comp: ObjectivesScreen },
   incidents:  { title: 'Incidentes de seguridad',     comp: IncidentsScreen },
   evidence:   { title: 'Evidencias de cumplimiento',  comp: EvidenceScreen },
+  reports:    { title: 'Informes',                    comp: ReportsScreen },
   org:        { title: 'Configuración del organismo', comp: OrgScreen },
   users:      { title: 'Usuarios y accesos',          comp: UsersScreen },
 };
@@ -134,14 +137,16 @@ export default function App() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         <Topbar title={title} isMobile={isMobile} onMenuToggle={() => setDrawerOpen(true)} />
         <div style={{ flex: 1, padding: isMobile ? 16 : 28, overflowY: 'auto' }}>
-          <Screen
-            userId={user.id}
-            orgId={membership.org_id}
-            role={membership.role}
-            onNavigate={navigate}
-            highlightEvidence={highlightEvidence}
-            onHighlightEvidence={setHighlightEvidence}
-          />
+          <Suspense fallback={<Spinner full />}>
+            <Screen
+              userId={user.id}
+              orgId={membership.org_id}
+              role={membership.role}
+              onNavigate={navigate}
+              highlightEvidence={highlightEvidence}
+              onHighlightEvidence={setHighlightEvidence}
+            />
+          </Suspense>
         </div>
       </div>
     </div>
