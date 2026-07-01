@@ -4,6 +4,7 @@ import { useAuth } from './hooks/useAuth';
 import { useMembership } from './hooks/useMembership';
 import { useAutoLogout } from './hooks/useAutoLogout';
 import { useSessionMaxAge } from './hooks/useSessionMaxAge';
+import { useIsMaster } from './hooks/useIsMaster';
 import { clearCachedReport } from './services/reports';
 import Sidebar from './components/layout/Sidebar';
 import Topbar from './components/layout/Topbar';
@@ -14,6 +15,7 @@ import RegisterScreen from './screens/RegisterScreen';
 import SelectionScreen from './screens/SelectionScreen';
 import IsoPendingScreen from './screens/IsoPendingScreen';
 import NoOrgScreen from './screens/NoOrgScreen';
+import MasterPanel from './screens/MasterPanel';
 import DashboardScreen from './screens/DashboardScreen';
 import ObjectivesScreen from './screens/ObjectivesScreen';
 import IncidentsScreen from './screens/IncidentsScreen';
@@ -44,6 +46,7 @@ const MAX_SESSION_H = 4;
 export default function App() {
   const { user, setUser, loading, signOut } = useAuth();
   const { membership, loading: memLoading } = useMembership(user);
+  const { isMaster, loading: masterLoading } = useIsMaster(user);
 
   // Cierre de sesión tras 1 hora de inactividad (solo si hay usuario).
   useAutoLogout(!!user, signOut);
@@ -92,6 +95,10 @@ export default function App() {
   if (NOT_CONFIGURED) return <SetupScreen />;
   if (inviteToken && !user) return <RegisterScreen token={inviteToken} />;
   if (!user) return <LoginScreen onLogin={setUser} />;
+
+  // El master va a su panel, fuera del flujo por organización.
+  if (masterLoading) return <Spinner full />;
+  if (isMaster) return <MasterPanel user={user} onLogout={signOut} />;
 
   // Pantalla de selección de marco
   if (!framework) {
