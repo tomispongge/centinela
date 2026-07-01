@@ -25,16 +25,17 @@ export default function UsersScreen({ userId, orgId, role }) {
   const [copied, setCopied]   = useState(false);
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState('');
+  const [copiedId, setCopiedId] = useState(null); // invitación cuyo link se acaba de copiar
 
   const load = useCallback(async () => {
     const [{ data: mem }, { data: inv }] = await Promise.all([
       sb.rpc('list_org_members'),
-      sb.from('invites').select('*').eq('used', false).order('created_at', { ascending: false }),
+      sb.from('invites').select('*').eq('org_id', orgId).order('created_at', { ascending: false }),
     ]);
     setMembers(mem || []);
-    setInvites((inv || []).filter(i => new Date(i.expires_at) > new Date()));
+    setInvites(inv || []); // historial completo: pendientes, expiradas y aceptadas
     setLoading(false);
-  }, []);
+  }, [orgId]);
   useEffect(() => { load(); }, [load]);
 
   if (!isAdmin) return <div style={CARD}><EmptyState icon="lock" msg="Solo los administradores pueden gestionar usuarios." /></div>;
@@ -77,6 +78,40 @@ export default function UsersScreen({ userId, orgId, role }) {
     load();
   };
   const copyLink = () => { try { navigator.clipboard.writeText(genLink); setCopied(true); } catch (e) {} };
+
+  // Vuelve a copiar el link de una invitación pendiente (para re-compartirlo).
+  const copyInviteLink = (inv) => {
+    try {
+      navigator.clipboard.writeText(`${window.location.origin}/?token=${inv.token}`);
+      setCopiedId(inv.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (e) {}
+  };
+
+  // Reenvía una invitación expirada: crea una nueva (token fresco) y reemplaza la vieja.
+  const resendInvite = async (inv) => {
+    setError(''); setGenLink(null); setCopied(false);
+    setBusy(true);
+    try {
+      const token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+      const { error: err } = await sb.from('invites').insert({ org_id: orgId, email: inv.email, role: inv.role, token, created_by: userId });
+      if (err) { setError(err.message || 'No se pudo reenviar la invitación.'); return; }
+      await sb.from('invites').delete().eq('id', inv.id);
+      setGenLink(`${window.location.origin}/?token=${token}`);
+      await load();
+    } catch (e) {
+      console.error('Error reenviando invitación:', e);
+      setError('Ocurrió un error al reenviar. Revisa la consola.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const inviteStatus = (i) => {
+    if (i.used) return { label: 'Aceptada', tone: 'ok' };
+    if (new Date(i.expires_at) <= new Date()) return { label: 'Expirada', tone: 'risk' };
+    return { label: 'Pendiente', tone: 'warn' };
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 820 }}>
@@ -150,20 +185,40 @@ export default function UsersScreen({ userId, orgId, role }) {
       {invites.length > 0 && (
         <div style={CARD}>
           <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 16, color: 'var(--text-strong)', marginBottom: 16 }}>
-            Invitaciones pendientes ({invites.length})
+            Invitaciones ({invites.length})
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {invites.map(i => (
-              <div key={i.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
-                <span style={{ flex: '1 1 200px', fontSize: 13, color: 'var(--text-body)', wordBreak: 'break-all' }}>{i.email}</span>
-                <Badge tone="warn">{i.role === 'admin' ? 'Admin' : 'Miembro'}</Badge>
-                <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Expira {fmtDate(i.expires_at)}</span>
-                <button title="Cancelar invitación" onClick={() => cancelInvite(i.id)}
-                  style={{ background: 'none', border: 'none', color: 'var(--danger-500)', cursor: 'pointer', padding: 5 }}>
-                  <Icon name="trash-2" size={15} />
-                </button>
-              </div>
-            ))}
+            {invites.map(i => {
+              const st = inviteStatus(i);
+              return (
+                <div key={i.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
+                  <span style={{ flex: '1 1 180px', fontSize: 13, color: 'var(--text-body)', wordBreak: 'break-all' }}>{i.email}</span>
+                  <Badge tone={i.role === 'admin' ? 'morado' : 'azul'}>{i.role === 'admin' ? 'Admin' : 'Miembro'}</Badge>
+                  <Badge tone={st.tone}>{st.label}</Badge>
+                  <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
+                    {i.used ? `Creada ${fmtDate(i.created_at)}` : `Expira ${fmtDate(i.expires_at)}`}
+                  </span>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginLeft: 'auto' }}>
+                    {st.label === 'Pendiente' && (
+                      <Button size="sm" variant={copiedId === i.id ? 'success' : 'ghost'} onClick={() => copyInviteLink(i)}>
+                        {copiedId === i.id ? <><Icon name="check" size={13} /> Copiado</> : <><Icon name="copy" size={13} /> Copiar link</>}
+                      </Button>
+                    )}
+                    {st.label === 'Expirada' && (
+                      <Button size="sm" variant="ghost" onClick={() => resendInvite(i)} disabled={busy}>
+                        <Icon name="user-plus" size={13} /> Reenviar
+                      </Button>
+                    )}
+                    {!i.used && (
+                      <button title="Eliminar invitación" onClick={() => cancelInvite(i.id)}
+                        style={{ background: 'none', border: 'none', color: 'var(--danger-500)', cursor: 'pointer', padding: 5 }}>
+                        <Icon name="trash-2" size={15} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
