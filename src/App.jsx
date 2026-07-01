@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { sb, NOT_CONFIGURED } from './lib/supabase';
 import { useAuth } from './hooks/useAuth';
 import { useMembership } from './hooks/useMembership';
+import { useAutoLogout } from './hooks/useAutoLogout';
 import Sidebar from './components/layout/Sidebar';
 import Topbar from './components/layout/Topbar';
 import Spinner from './components/common/Spinner';
@@ -37,6 +38,9 @@ const SCREENS = {
 export default function App() {
   const { user, setUser, loading, signOut } = useAuth();
   const { membership, loading: memLoading } = useMembership(user);
+
+  // Cierre de sesión tras 1 hora de inactividad (solo si hay usuario).
+  useAutoLogout(!!user, signOut);
 
   const [framework, setFramework]   = useState(null); // null | 'comges' | 'iso'
   const [current, setCurrent]       = useState('dashboard');
