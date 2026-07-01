@@ -18,12 +18,16 @@ function axisWeight(code) {
 const estadoObjetivo = p => (p >= 75 ? 'En meta' : p >= 40 ? 'En progreso' : 'Atrasado');
 
 export function buildReportPrompt({ objectives, incidents, evidence, profile }) {
+  const hoy = new Date();
+  const diasHasta = (fecha) => (fecha ? Math.ceil((new Date(fecha) - hoy) / 86400000) : null);
+
   const enriched = objectives.map(o => {
     const total = o.tasks?.length || 0;
     const done  = o.tasks?.filter(t => t.done).length || 0;
     const avance = total ? Math.round((done / total) * 100) : 0;
     return {
       codigo: o.code, nombre: o.name, plazo: o.plazo || null,
+      dias_para_plazo: diasHasta(o.plazo),
       avance_pct: avance, tareas: `${done}/${total}`,
       estado: estadoObjetivo(avance), completo: total > 0 && done === total,
     };
@@ -62,24 +66,32 @@ export function buildReportPrompt({ objectives, incidents, evidence, profile }) 
   };
 
   return [
-    'Eres un analista de cumplimiento en ciberseguridad para el sector salud / público de Chile (marco COMGES / ANCI).',
-    'Redacta un INFORME DE AVANCES profesional en español, en Markdown, basándote ÚNICAMENTE en los datos entregados. No inventes cifras ni hechos.',
+    'Actúas como el/la CISO de una institución de salud chilena (marco COMGES / ANCI) y redactas un INFORME EJECUTIVO dirigido a la DIRECCIÓN del hospital (audiencia ejecutiva, no técnica). En Markdown, en español.',
+    'Objetivo del informe: que la Dirección entienda el estado, el RIESGO para la institución, si se llegará al plazo, y qué decisiones o apoyo se necesitan de ella.',
     '',
-    'FORMATO (respétalo para que todos los informes sean consistentes):',
-    '- Comienza EXACTAMENTE con este título nivel 1: "# Informe de Avances — Cumplimiento COMGES / ANCI"',
-    '- Debajo, una línea con: organismo, tipo de OIV, región/ciudad y fecha del informe.',
-    '- Luego las 6 secciones numeradas de abajo, en ese orden.',
-    '- Escribe el informe COMPLETO hasta las recomendaciones. No lo cortes ni lo dejes a medias.',
+    'REGLAS DE HONESTIDAD (críticas):',
+    '- Básate SOLO en los datos entregados. No inventes cifras ni hechos.',
+    '- Los datos NO incluyen nivel de riesgo por objetivo ni si un incidente afectó datos de pacientes. Cuando priorices por riesgo o infieras consecuencias, decláralo como criterio de análisis a validar ("estimación, a confirmar por el CISO"), NO como dato.',
+    '- NO afirmes que la institución "cumple" la ley. Habla de obligaciones y exposición, aclarando que es orientación general y debe verificarse con un especialista.',
+    '',
+    'FORMATO (respétalo para consistencia):',
+    '- Título nivel 1 EXACTO: "# Informe Ejecutivo de Ciberseguridad — Cumplimiento COMGES / ANCI"',
+    '- Debajo, una línea con: organismo, tipo de OIV, región/ciudad y fecha.',
+    '- Luego las secciones en este orden. Escribe el informe COMPLETO; no lo cortes.',
     '',
     'Secciones:',
-    '1. **Resumen ejecutivo** (3-5 frases con lo más relevante).',
-    '2. **Cumplimiento global y real**. Explica ambos con precisión y SIN dramatizar: el "real" solo cuenta objetivos cerrados al 100%, por eso puede ser 0% aunque el avance global sea alto. Deja claro que un avance global alto refleja progreso sustantivo aunque aún no se cierre ningún eje. No lo llames "crítico" si el global es razonable.',
-    '3. **Avance por objetivo**: preséntalo como una TABLA con columnas: Código | Nombre | Avance % | Tareas | Estado. Luego destaca en 1-2 frases los atrasados y los que están en meta.',
-    '4. **Incidentes de seguridad** (situación general; alerta explícita SOLO si hay incidentes críticos abiertos).',
-    '5. **Estado de la evidencia documental** (según los estados por documento).',
-    '6. **Recomendaciones** (3-5 acciones concretas y priorizadas según los datos).',
+    '1. **Resumen para la Dirección** (4-6 frases): estado general, el principal riesgo hoy, si el ritmo alcanza para el plazo, y qué se solicita a la Dirección. Directo, sin jerga técnica.',
+    '2. **Estado de cumplimiento**: explica el avance global y el "real" con sobriedad (el real solo cuenta objetivos 100% cerrados; puede ser 0% con avance global alto — no lo llames crítico si el global es razonable).',
+    '3. **¿Llegamos al plazo?**: usa "dias_para_plazo" de cada objetivo. Indica EXPLÍCITAMENTE si el ritmo actual es suficiente e identifica los objetivos en riesgo de NO cumplir su plazo. Honesto y claro.',
+    '4. **Riesgos priorizados**: ordena los objetivos con menor avance por RIESGO para un hospital (continuidad clínica, protección de datos de pacientes, control de accesos), NO solo por porcentaje. Para los 2-3 principales, explica la consecuencia concreta de la brecha. Marca esta priorización como criterio de análisis a validar.',
+    '5. **Contexto regulatorio** (orientativo, a verificar; no es asesoría legal): un hospital puede calificar como Operador de Importancia Vital (OIV) bajo la Ley 21.663, con deberes ante la ANCI (registro, delegado de ciberseguridad, gestión y reporte de incidentes). Además la Ley 21.719 de protección de datos entra en plena vigencia el 01-12-2026, con una Agencia que puede fiscalizar y sancionar. Explica la exposición si el cumplimiento no está a tiempo, SIN afirmar incumplimiento.',
+    '6. **Incidentes**: situación general. Si hubo incidentes, advierte que —de haber involucrado datos de pacientes— podrían gatillar deberes de notificación (a verificar por el CISO; el dato no lo especifica).',
+    '7. **Avance por objetivo (detalle)**: TABLA con columnas Código | Nombre | Avance % | Tareas | Estado | Días para plazo.',
+    '8. **Recomendaciones y decisiones solicitadas** (3-5, priorizadas). Cada una con: acción concreta, rol responsable sugerido (sin nombres), qué se solicita a la Dirección (recursos/decisión), y consecuencia de no actuar.',
     '',
-    'Tono: formal, claro, objetivo y orientado a la acción (ni alarmista ni complaciente). No incluyas datos personales de individuos.',
+    'Cierra con una nota breve en cursiva: "Informe generado con apoyo de IA a partir de los datos del sistema; debe ser validado por el CISO antes de su presentación."',
+    '',
+    'Tono: ejecutivo, formal, honesto, orientado a la decisión. Ni alarmista ni complaciente. No incluyas datos personales de individuos.',
     '',
     'DATOS:',
     JSON.stringify(datos, null, 2),
