@@ -1,0 +1,101 @@
+/* ════════════════════════════════════════════════════
+   Estilos base y responsive — portados del <style> del HTML original.
+   (Se omite la regla [data-lucide]: ya no se usa lucide UMD, sino lucide-react.)
+   ════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: linear-gradient(135deg, #060F2B 0%, #0A1A3F 45%, #070F2B 100%);
+  color: var(--text-body); font-family: 'Manrope', sans-serif; min-height: 100vh;
+}
+#root { height: 100vh; display: flex; overflow: hidden; }
+::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(6,15,43,.88);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; backdrop-filter: blur(6px);
+}
+input, textarea, select {
+  background: rgba(255,255,255,0.07); border: 1px solid var(--border-default);
+  border-radius: var(--radius-md); color: var(--text-strong);
+  font-family: 'Manrope', sans-serif; font-size: 14px;
+  padding: 10px 14px; width: 100%; outline: none; transition: border-color 150ms, box-shadow 150ms;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--azul-400); box-shadow: 0 0 0 3px rgba(79,132,242,.18);
+}
+select option { background: #0E2150; color: var(--text-body); }
+textarea { resize: vertical; min-height: 80px; }
+input[type=checkbox] { width: auto; padding: 0; accent-color: var(--azul-400); cursor: pointer; }
+input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.anim-fade { animation: fadeIn 0.18s ease; }
+
+/* ===== RESPONSIVE ===== */
+/* Colapsar grids de varias columnas a 1 columna en pantallas pequeñas */
+@media (max-width: 768px) {
+  [style*="grid-template-columns"]:not(.dash-stat-grid):not(.sel-grid) {
+    grid-template-columns: 1fr !important;
+  }
+  /* Inputs a 16px para evitar zoom automático en iOS */
+  input, textarea, select { font-size: 16px !important; }
+  /* Tablas con scroll horizontal */
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+}
+/* Tablet: grids de 3+ columnas pasan a 2 */
+@media (min-width: 769px) and (max-width: 1080px) {
+  .sel-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+/* Selection grid: 1 columna en móvil */
+@media (max-width: 600px) {
+  .sel-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ===== DASHBOARD RESPONSIVE ===== */
+/* Las filas del dashboard se apilan verticalmente en móvil */
+@media (max-width: 860px) {
+  .dash-row { flex-direction: column !important; }
+  .dash-row > * { min-width: 0 !important; width: 100% !important; }
+  /* Anillos: reducir tamaño y permitir wrap del contenido */
+  .dash-ring-card { gap: 18px !important; padding: 18px !important; }
+  .dash-ring-card svg { width: 110px !important; height: 110px !important; }
+  .dash-stat-grid { grid-template-columns: 1fr 1fr !important; width: 100%; }
+}
+@media (max-width: 420px) {
+  .dash-ring-card { flex-direction: column !important; text-align: center; }
+  .dash-ring-card svg { width: 130px !important; height: 130px !important; }
+  .dash-stat-grid { grid-template-columns: 1fr 1fr !important; }
+}
+
+/* ===== EVIDENCIAS RESPONSIVE ===== */
+/* Fila de documento: permitir wrap en móvil para que los botones no se desborden */
+@media (max-width: 640px) {
+  .ev-doc-row { flex-wrap: wrap !important; row-gap: 8px; }
+  .ev-doc-row .ev-doc-info { flex: 1 1 100% !important; order: -1; }
+  .ev-doc-actions { margin-left: auto; }
+}
+
+/* ===== OBJETIVOS RESPONSIVE ===== */
+/* La tarjeta de objetivo reorganiza anillo, info y acciones en móvil */
+@media (max-width: 640px) {
+  .obj-row { flex-wrap: wrap !important; }
+  .obj-ring { width: 64px !important; height: 64px !important; }
+  .obj-info { flex: 1 1 calc(100% - 80px) !important; }
+  /* Las acciones bajan a su propia línea, alineadas a la derecha */
+  .obj-actions { flex: 1 1 100% !important; justify-content: flex-end; order: 3;
+    border-top: 1px solid var(--border-subtle); padding-top: 8px; margin-top: 4px; }
+  .obj-actions button { padding: 8px !important; }
+}
+
+/* ===== ORGANISMO RESPONSIVE ===== */
+/* El header apila avatar+info y baja los botones a su propia línea */
+@media (max-width: 640px) {
+  .org-header { flex-wrap: wrap !important; gap: 16px !important; }
+  .org-header-info { flex: 1 1 calc(100% - 96px) !important; }
+  .org-header-actions { flex: 1 1 100% !important; }
+  .org-header-actions button { flex: 1; justify-content: center; }
+  /* El botón "Editar" (cuando va solo) ocupa todo el ancho */
+  .org-header > button { flex: 1 1 100% !important; justify-content: center; }
+}

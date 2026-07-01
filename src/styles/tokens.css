@@ -1,0 +1,24 @@
+/* ════════════════════════════════════════════════════
+   Design tokens — portados tal cual del :root del HTML original.
+   Paleta navy oscuro + cian, glass-morphism. NO modificar valores.
+   ════════════════════════════════════════════════════ */
+:root {
+  --azul-500: #2A6FDB; --azul-400: #4F84F2;
+  --celeste-300: #66D4F7; --celeste-400: #38BFEC;
+  --morado-500: #7C5CFC; --morado-300: #AB90FB;
+  --navy-900: #060F2B; --navy-850: #0E2150;
+  --text-strong: #F4F8FF; --text-body: #D5DEF2;
+  --text-muted: #9CABCD; --text-faint: #6B7AA0;
+  --surface-card: rgba(255,255,255,0.055);
+  --surface-card-2: rgba(255,255,255,0.085);
+  --border-subtle: rgba(255,255,255,0.08);
+  --border-default: rgba(255,255,255,0.14);
+  --success-300: #6EE7B7; --success-500: #10B981;
+  --warning-300: #FCD77E; --warning-500: #F4B740;
+  --danger-300: #FCA5B8; --danger-500: #F2566F;
+  --grad-shield: linear-gradient(160deg, #4F84F2 0%, #7C5CFC 100%);
+  --radius-md: 14px; --radius-lg: 20px; --radius-pill: 999px;
+  --shadow-md: 0 8px 24px rgba(6,15,43,.40);
+  --glow-azul: 0 0 0 1px rgba(86,194,240,.30), 0 6px 28px rgba(42,111,219,.45);
+  --blur-glass: blur(18px) saturate(1.3);
+}

@@ -1,0 +1,23 @@
+# Dependencias
+node_modules
+
+# Build de Vite
+dist
+dist-ssr
+
+# Variables de entorno (nunca commitear; setear en Vercel)
+.env
+.env.*.local
+*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / SO
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
