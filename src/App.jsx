@@ -39,8 +39,10 @@ export default function App() {
   const { user, setUser, loading, signOut } = useAuth();
   const { membership, loading: memLoading } = useMembership(user);
 
-  // Cierre de sesión tras 1 hora de inactividad (solo si hay usuario).
-  useAutoLogout(!!user, signOut);
+  // Cierre de sesión por inactividad (solo si hay usuario).
+  // ⚠️ TEMPORAL: 60 s para probar en el preview. QUITAR el 3er argumento
+  //    (vuelve al default de 1 h) ANTES de mergear a main.
+  useAutoLogout(!!user, signOut, 60 * 1000);
 
   const [framework, setFramework]   = useState(null); // null | 'comges' | 'iso'
   const [current, setCurrent]       = useState('dashboard');
