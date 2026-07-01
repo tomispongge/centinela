@@ -64,7 +64,18 @@ export default function EvidenceScreen({ userId, orgId, role, highlightEvidence,
     await sb.from('evidence').delete().eq('id', id); load();
   };
 
+  // Reasigna una evidencia huérfana a un objetivo existente.
+  const reassign = async (id, code) => {
+    await sb.from('evidence').update({ objective_code: code }).eq('id', id);
+    load();
+  };
+
   if (loading) return <Spinner />;
+
+  // Evidencias huérfanas: su objective_code no coincide con ningún objetivo actual
+  // (su objetivo fue borrado o le cambiaron el código). Quedaban invisibles aquí.
+  const objCodes = new Set(objectives.map(o => o.code));
+  const orphans = evidence.filter(e => !objCodes.has(e.objective_code));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -151,6 +162,55 @@ export default function EvidenceScreen({ userId, orgId, role, highlightEvidence,
             );
           })
       }
+
+      {/* Evidencias huérfanas (solo admin): visibles y gestionables aquí */}
+      {isAdmin && orphans.length > 0 && (
+        <div style={{ ...CARD, border: '1px solid rgba(252,215,126,.34)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ color: 'var(--warning-300)' }}><Icon name="alert-triangle" size={18} /></span>
+            <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 15, color: 'var(--text-strong)' }}>
+              Sin objetivo asignado ({orphans.length})
+            </h3>
+          </div>
+          <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 12 }}>
+            Estas evidencias quedaron huérfanas (su objetivo fue borrado o le cambiaron el código). Reasígnalas a un objetivo o elimínalas.
+          </p>
+          {orphans.map(doc => {
+            const statusTone = doc.status === 'Aprobado' ? 'ok' : doc.status === 'Rechazado' ? 'risk' : 'warn';
+            return (
+              <div key={doc.id} className="ev-doc-row"
+                style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--border-subtle)' }}>
+                <Icon name="file-text" size={16} color="var(--celeste-300)" />
+                <div className="ev-doc-info" style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500, color: 'var(--text-strong)', fontSize: 13.5 }}>{doc.name}</div>
+                  <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
+                    {doc.format}{doc.size ? ` · ${doc.size}` : ''} · {fmtDate(doc.created_at)}
+                    {doc.objective_code ? ` · código: ${doc.objective_code}` : ' · sin código'}
+                  </span>
+                </div>
+                <Badge tone={statusTone}>{doc.status}</Badge>
+                <div className="ev-doc-actions" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <select defaultValue="" onChange={e => { if (e.target.value) reassign(doc.id, e.target.value); }}
+                    style={{ fontSize: 11, padding: '4px 8px', maxWidth: 200 }}>
+                    <option value="">Reasignar a…</option>
+                    {objectives.map(o => <option key={o.id} value={o.code}>{o.code} — {o.name}</option>)}
+                  </select>
+                  {doc.file_url && (
+                    <a href={doc.file_url} target="_blank" rel="noreferrer"
+                      style={{ color: 'var(--azul-400)', display: 'flex', alignItems: 'center', padding: 4 }}>
+                      <Icon name="external-link" size={14} />
+                    </a>
+                  )}
+                  <button onClick={() => del(doc.id)}
+                    style={{ background: 'none', border: 'none', color: 'var(--danger-500)', cursor: 'pointer', padding: 4 }}>
+                    <Icon name="trash-2" size={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {modal && (
         <EvModal
