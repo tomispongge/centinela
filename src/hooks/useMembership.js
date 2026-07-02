@@ -44,6 +44,12 @@ export function useMembership(user) {
         }
 
         result = data || null;
+        // Fallback: cuenta EXISTENTE re-invitada → canjea una invitación pendiente
+        // dirigida a su correo (el token en metadata puede estar obsoleto).
+        if (!result) {
+          const { data: joinedOrg } = await sb.rpc('redeem_pending_invite');
+          if (joinedOrg) { const r = await fetchMembership(); result = r.data || null; }
+        }
         if (result) {
           const { data: org } = await sb.from('organizations').select('suspended').eq('id', result.org_id).maybeSingle();
           sus = !!org?.suspended;
