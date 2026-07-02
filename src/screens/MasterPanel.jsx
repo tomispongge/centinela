@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { listOrganizations, getOrganization, createOrganization, updateOrganization, setOrgSuspended, changeOrgAdmin, deleteOrganization } from '../services/master';
+import { listAdminLeaveRequests, approveLeave, rejectLeave } from '../services/leaveRequests';
 import { CARD } from '../lib/constants';
+import { fmtDate } from '../lib/format';
 import Icon from '../components/common/Icon';
 import Button from '../components/common/Button';
 import Field from '../components/common/Field';
@@ -16,20 +18,35 @@ import CsShieldLogo from '../components/common/CsShieldLogo';
 // ════════════════════════════════════════════════════
 export default function MasterPanel({ user, onLogout }) {
   const [orgs, setOrgs]       = useState([]);
+  const [adminReqs, setAdminReqs] = useState([]);   // solicitudes de salida de admins
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing]   = useState(null);   // organismo completo en edición
   const [genLink, setGenLink]   = useState(null);
   const [copied, setCopied]     = useState(false);
+  const [busy, setBusy]         = useState(false);
 
   const load = useCallback(async () => {
-    try { setOrgs(await listOrganizations()); } catch (e) { console.error(e); }
+    try {
+      const [os, reqs] = await Promise.all([listOrganizations(), listAdminLeaveRequests()]);
+      setOrgs(os); setAdminReqs(reqs);
+    } catch (e) { console.error(e); }
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const openEdit = async (o) => {
     try { setEditing(await getOrganization(o.id)); } catch (e) { alert(e.message); }
+  };
+
+  const approveExit = async (id) => {
+    if (!confirm('¿Aprobar la salida de este administrador? Perderá el acceso al organismo.')) return;
+    setBusy(true);
+    try { await approveLeave(id); await load(); } catch (e) { alert(e.message); } finally { setBusy(false); }
+  };
+  const rejectExit = async (id) => {
+    setBusy(true);
+    try { await rejectLeave(id); await load(); } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
 
   const copyLink = () => { try { navigator.clipboard.writeText(genLink); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) {} };
@@ -71,6 +88,23 @@ export default function MasterPanel({ user, onLogout }) {
                 {copied ? <><Icon name="check" size={14} /> Copiado</> : <><Icon name="copy" size={14} /> Copiar</>}
               </Button>
             </div>
+          </div>
+        )}
+
+        {adminReqs.length > 0 && (
+          <div style={{ ...CARD, border: '1px solid rgba(252,215,126,.34)' }}>
+            <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 15, color: 'var(--text-strong)', marginBottom: 6 }}>
+              Solicitudes de salida de administradores ({adminReqs.length})
+            </h3>
+            <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 12 }}>Administradores que pidieron salir de su organismo.</p>
+            {adminReqs.map(r => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 8px', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
+                <span style={{ flex: '1 1 200px', fontSize: 13.5, color: 'var(--text-body)', wordBreak: 'break-all' }}>{r.email}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{fmtDate(r.created_at)}</span>
+                <Button size="sm" variant="success" onClick={() => approveExit(r.id)} disabled={busy}>Aprobar salida</Button>
+                <Button size="sm" variant="ghost" onClick={() => rejectExit(r.id)} disabled={busy}>Rechazar</Button>
+              </div>
+            ))}
           </div>
         )}
 
