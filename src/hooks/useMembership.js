@@ -13,6 +13,7 @@ import { sb } from '../lib/supabase';
 // ════════════════════════════════════════════════════
 export function useMembership(user) {
   const [membership, setMembership] = useState(null);
+  const [suspended, setSuspended]   = useState(false);
   const [loading, setLoading]       = useState(true);
   const redeemRef = useRef({ token: null, promise: null }); // canje en curso, por token
 
@@ -27,6 +28,7 @@ export function useMembership(user) {
 
     (async () => {
       let result = null;
+      let sus = false;
       try {
         let { data } = await fetchMembership();
         const token = user.user_metadata?.invite_token;
@@ -42,15 +44,19 @@ export function useMembership(user) {
         }
 
         result = data || null;
+        if (result) {
+          const { data: org } = await sb.from('organizations').select('suspended').eq('id', result.org_id).maybeSingle();
+          sus = !!org?.suspended;
+        }
       } catch (e) {
         console.error('Error cargando membresía:', e);
       } finally {
-        if (active) { setMembership(result); setLoading(false); }
+        if (active) { setMembership(result); setSuspended(sus); setLoading(false); }
       }
     })();
 
     return () => { active = false; };
   }, [user]);
 
-  return { membership, loading };
+  return { membership, suspended, loading };
 }

@@ -58,3 +58,22 @@ export async function updateOrganization(orgId, f) {
   }).eq('id', orgId);
   if (error) throw new Error(error.message);
 }
+
+// Pausa/reanuda la visualización de un organismo (update directo; RLS = master).
+export async function setOrgSuspended(orgId, suspended) {
+  const { error } = await sb.from('organizations').update({ suspended }).eq('id', orgId);
+  if (error) throw new Error(error.message);
+}
+
+// Cambia el admin del organismo: quita el actual e invita al nuevo. Devuelve { invite_token }.
+export async function changeOrgAdmin(orgId, newEmail) {
+  const { data, error } = await sb.rpc('change_org_admin', { p_org_id: orgId, p_new_email: newEmail });
+  if (error) throw new Error(error.message);
+  return Array.isArray(data) ? data[0] : data;
+}
+
+// Elimina el organismo y TODO su contenido (irreversible).
+export async function deleteOrganization(orgId) {
+  const { error } = await sb.rpc('delete_organization', { p_org_id: orgId });
+  if (error) throw new Error(error.message);
+}

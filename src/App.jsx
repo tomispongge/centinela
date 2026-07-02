@@ -15,6 +15,7 @@ import RegisterScreen from './screens/RegisterScreen';
 import SelectionScreen from './screens/SelectionScreen';
 import IsoPendingScreen from './screens/IsoPendingScreen';
 import NoOrgScreen from './screens/NoOrgScreen';
+import SuspendedScreen from './screens/SuspendedScreen';
 import MasterPanel from './screens/MasterPanel';
 import DashboardScreen from './screens/DashboardScreen';
 import ObjectivesScreen from './screens/ObjectivesScreen';
@@ -45,7 +46,7 @@ const MAX_SESSION_H = 4;
 
 export default function App() {
   const { user, setUser, loading, signOut } = useAuth();
-  const { membership, loading: memLoading } = useMembership(user);
+  const { membership, suspended: orgSuspended, loading: memLoading } = useMembership(user);
   const { isMaster, loading: masterLoading } = useIsMaster(user);
 
   // Cierre de sesión tras 1 hora de inactividad (solo si hay usuario).
@@ -139,6 +140,7 @@ export default function App() {
   // COMGES requiere organización: esperar la carga de membresía y validarla
   if (memLoading) return <Spinner full />;
   if (!membership) return <NoOrgScreen email={user.email} onLogout={signOut} />;
+  if (orgSuspended) return <SuspendedScreen email={user.email} onLogout={signOut} />;
 
   // COMGES: app completa
   const { title, comp: Screen } = SCREENS[current] || SCREENS.dashboard;

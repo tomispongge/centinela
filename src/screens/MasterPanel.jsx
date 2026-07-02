@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { listOrganizations, getOrganization, createOrganization, updateOrganization } from '../services/master';
+import { listOrganizations, getOrganization, createOrganization, updateOrganization, setOrgSuspended, changeOrgAdmin, deleteOrganization } from '../services/master';
 import { CARD } from '../lib/constants';
 import Icon from '../components/common/Icon';
 import Button from '../components/common/Button';
 import Field from '../components/common/Field';
+import Badge from '../components/common/Badge';
 import Modal from '../components/common/Modal';
 import EmptyState from '../components/common/EmptyState';
 import Spinner from '../components/common/Spinner';
@@ -82,7 +83,10 @@ export default function MasterPanel({ user, onLogout }) {
                   <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px',
                     borderBottom: idx < orgs.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-strong)' }}>{o.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-strong)' }}>{o.name}</span>
+                        {Number(o.admins) === 0 && <Badge tone="warn">Admin pendiente</Badge>}
+                      </div>
                       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                         {o.org_tipo_oiv || 'Sin tipo'}{o.org_ciudad ? ` · ${o.org_ciudad}` : ''} · {o.members} miembro{o.members === 1 ? '' : 's'}, {o.admins} admin{o.admins === 1 ? '' : 's'}
                       </div>
@@ -107,13 +111,14 @@ export default function MasterPanel({ user, onLogout }) {
           org={editing}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); load(); }}
+          onReload={load}
         />
       )}
     </div>
   );
 }
 
-function OrgFormModal({ mode, org, onClose, onSaved }) {
+function OrgFormModal({ mode, org, onClose, onSaved, onReload }) {
   const isEdit = mode === 'edit';
   const [f, setF] = useState({
     org_name: org?.name || '',
@@ -131,6 +136,12 @@ function OrgFormModal({ mode, org, onClose, onSaved }) {
   const [error, setError]   = useState('');
   const s = (k, v) => setF(p => ({ ...p, [k]: v }));
 
+  // Gestión (solo edición)
+  const [suspended, setSuspended] = useState(!!org?.suspended);
+  const [newAdmin, setNewAdmin]   = useState('');
+  const [adminLink, setAdminLink] = useState(null);
+  const [busy, setBusy]           = useState(false);
+
   const submit = async (e) => {
     e.preventDefault(); setError(''); setSaving(true);
     try {
@@ -146,6 +157,34 @@ function OrgFormModal({ mode, org, onClose, onSaved }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const togglePause = async () => {
+    setBusy(true); setError('');
+    try { await setOrgSuspended(org.id, !suspended); setSuspended(!suspended); onReload?.(); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
+
+  const doChangeAdmin = async () => {
+    const email = newAdmin.trim();
+    if (!email) return;
+    if (!window.confirm('Esto quita el acceso del administrador actual e invita a uno nuevo. ¿Continuar?')) return;
+    setBusy(true); setError(''); setAdminLink(null);
+    try {
+      const { invite_token } = await changeOrgAdmin(org.id, email);
+      setAdminLink(`${window.location.origin}/?token=${invite_token}`);
+      setNewAdmin('');
+      onReload?.();
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
+
+  const doDelete = async () => {
+    if (!window.confirm(`Vas a ELIMINAR "${f.org_name}" y TODOS sus datos (objetivos, incidentes, evidencias, usuarios). Esto es IRREVERSIBLE.\n\n¿Continuar?`)) return;
+    setBusy(true); setError('');
+    try { await deleteOrganization(org.id); onSaved(); }
+    catch (err) { setError(err.message); setBusy(false); }
   };
 
   return (
@@ -186,6 +225,53 @@ function OrgFormModal({ mode, org, onClose, onSaved }) {
           <Button type="submit" disabled={saving}>{saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Crear organismo'}</Button>
         </div>
       </form>
+
+      {isEdit && (
+        <div style={{ marginTop: 22, paddingTop: 18, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <h4 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 14, color: 'var(--text-strong)' }}>Gestión</h4>
+
+          {/* Pausar visualización */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-strong)' }}>Visualización</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                {suspended ? 'Pausada — los usuarios ven "organismo pausado".' : 'Activa — los usuarios acceden normalmente.'}
+              </div>
+            </div>
+            <Button size="sm" variant={suspended ? 'success' : 'ghost'} onClick={togglePause} disabled={busy}>
+              {suspended ? <><Icon name="check" size={14} /> Reanudar</> : 'Pausar'}
+            </Button>
+          </div>
+
+          {/* Cambiar administrador */}
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-strong)', marginBottom: 6 }}>Cambiar administrador</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input type="email" value={newAdmin} onChange={e => setNewAdmin(e.target.value)}
+                placeholder="nuevo-admin@hospital.cl" style={{ flex: '1 1 220px' }} />
+              <Button size="sm" variant="ghost" onClick={doChangeAdmin} disabled={busy}>Cambiar</Button>
+            </div>
+            {adminLink && (
+              <div style={{ marginTop: 8, padding: 12, background: 'rgba(86,194,240,.1)', border: '1px solid rgba(86,194,240,.3)', borderRadius: 8 }}>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Comparte este link con el nuevo administrador:</p>
+                <input readOnly value={adminLink} onFocus={e => e.target.select()}
+                  style={{ fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }} />
+              </div>
+            )}
+          </div>
+
+          {error && <p style={{ color: 'var(--danger-300)', fontSize: 12.5 }}>{error}</p>}
+
+          {/* Eliminar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--danger-300)' }}>Eliminar organismo</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Borra el organismo y todos sus datos. Irreversible.</div>
+            </div>
+            <Button size="sm" variant="danger" onClick={doDelete} disabled={busy}><Icon name="trash-2" size={14} /> Eliminar</Button>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }
