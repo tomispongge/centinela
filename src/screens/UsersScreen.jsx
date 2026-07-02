@@ -181,14 +181,14 @@ export default function UsersScreen({ userId, orgId, role }) {
         </div>
       </div>
 
-      {/* Invitaciones pendientes */}
-      {invites.length > 0 && (
+      {/* Invitaciones pendientes/expiradas (las aceptadas ya figuran en Equipo) */}
+      {invites.some(i => !i.used) && (
         <div style={CARD}>
           <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 600, fontSize: 16, color: 'var(--text-strong)', marginBottom: 16 }}>
-            Invitaciones ({invites.length})
+            Invitaciones ({invites.filter(i => !i.used).length})
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {invites.map(i => {
+            {invites.filter(i => !i.used).map(i => {
               const st = inviteStatus(i);
               return (
                 <div key={i.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
