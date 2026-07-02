@@ -77,3 +77,10 @@ export async function deleteOrganization(orgId) {
   const { error } = await sb.rpc('delete_organization', { p_org_id: orgId });
   if (error) throw new Error(error.message);
 }
+
+// Regenera la invitación del admin pendiente (mismo correo, token nuevo).
+export async function regenerateAdminInvite(orgId) {
+  const { data, error } = await sb.rpc('regenerate_admin_invite', { p_org_id: orgId });
+  if (error) throw new Error(error.message);
+  return Array.isArray(data) ? data[0] : data; // { invite_token, email }
+}

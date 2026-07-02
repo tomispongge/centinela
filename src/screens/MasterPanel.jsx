@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { listOrganizations, getOrganization, createOrganization, updateOrganization, setOrgSuspended, changeOrgAdmin, deleteOrganization } from '../services/master';
+import { listOrganizations, getOrganization, createOrganization, updateOrganization, setOrgSuspended, changeOrgAdmin, deleteOrganization, regenerateAdminInvite } from '../services/master';
 import { listAdminLeaveRequests, approveLeave, rejectLeave } from '../services/leaveRequests';
 import { CARD } from '../lib/constants';
 import { fmtDate } from '../lib/format';
@@ -50,6 +50,15 @@ export default function MasterPanel({ user, onLogout }) {
   };
 
   const copyLink = () => { try { navigator.clipboard.writeText(genLink); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) {} };
+
+  const regenLink = async (o) => {
+    setBusy(true); setGenLink(null); setCopied(false);
+    try {
+      const { invite_token } = await regenerateAdminInvite(o.id);
+      setGenLink(`${window.location.origin}/?token=${invite_token}`);
+      await load();
+    } catch (e) { alert(e.message); } finally { setBusy(false); }
+  };
 
   return (
     <div style={{ flex: 1, width: '100%', minWidth: 0, overflowY: 'auto', maxHeight: '100vh' }}>
@@ -125,7 +134,14 @@ export default function MasterPanel({ user, onLogout }) {
                         {o.org_tipo_oiv || 'Sin tipo'}{o.org_ciudad ? ` · ${o.org_ciudad}` : ''} · {o.members} miembro{o.members === 1 ? '' : 's'}, {o.admins} admin{o.admins === 1 ? '' : 's'}
                       </div>
                     </div>
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(o)}><Icon name="pencil" size={14} /> Editar</Button>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      {Number(o.admins) === 0 && (
+                        <Button size="sm" variant="ghost" onClick={() => regenLink(o)} disabled={busy}>
+                          <Icon name="copy" size={14} /> Regenerar link
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(o)}><Icon name="pencil" size={14} /> Editar</Button>
+                    </div>
                   </div>
                 ))}
               </div>
